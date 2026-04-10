@@ -24,6 +24,42 @@
       font-family: 'Courier New', Courier, monospace;
     }
 
+    /* Top mode bar */
+    #modebar {
+      position: fixed;
+      top: 1.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 0;
+      background: rgba(255,255,255,0.88);
+      border: 1px solid #ddd;
+      border-radius: 999px;
+      padding: 0.25rem 0.35rem;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      backdrop-filter: blur(6px);
+    }
+
+    #modebar button {
+      border: none;
+      background: none;
+      padding: 0.25rem 0.85rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #555;
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    #modebar button.active {
+      background: #cb4b16;
+      color: #fff;
+    }
+    #modebar button:not(.active):hover { background: #f0f0f0; }
+
     /* Controls overlay */
     #controls {
       position: fixed;
@@ -86,6 +122,14 @@
     /* pre sits on top of the canvas; background must be transparent */
     #stage { background: transparent; }
 
+    #shadercanvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+    }
+
     #divider {
       position: fixed;
       top: 0;
@@ -103,8 +147,14 @@
 <body>
   <pre id="stage"></pre>
   <canvas id="glcanvas"></canvas>
+  <canvas id="shadercanvas"></canvas>
   <div id="divider"></div>
 
+  <div id="modebar">
+    <button id="modeOverlay" class="active">Overlay</button>
+    <button id="modeProximity">Proximity</button>
+    <button id="modeSweep">Autosweep</button>
+  </div>
 
   <div id="controls">
     <span>
@@ -145,7 +195,7 @@
       </select>
     </span>
     <span><label for="fontSize">Size</label><input id="fontSize" type="range" min="6" max="22" value="11"></span>
-    <span><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
+    <span id="overlayControl"><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
     <button id="rainBtn">Rain: Off</button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
@@ -483,17 +533,72 @@
           }
 
           // Lily pads
-          [[-20,10],[24,-6],[-4,-22],[32,16],[-26,-4],[12,26],[-16,-16],[28,4],[0,18],[-30,20]].forEach(([x,z]) => {
-            const r   = 2.4 + Math.random() * 2.8;
-            const pad = new THREE.Mesh(
-              new THREE.CircleGeometry(r, 16),
-              new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.33, 0.55, 0.11) })
-            );
+          [[-20,10],[24,-6],[-4,-22],[32,16],[-26,-4],[12,26],[-16,-16],[28,4],[0,18],[-30,20]].forEach(([x,z], padIdx) => {
+            const r        = 2.4 + Math.random() * 2.8;
+            const segments = 40;
+            const geo      = new THREE.CircleGeometry(r, segments);
+            const noiseOff = padIdx * 7.3 + Math.random() * 100; // unique noise origin per pad
+
+            // Vertex colours: noise-driven mottling layered over a radial gradient
+            const pos  = geo.attributes.position.array;
+            const cols = new Float32Array(pos.length);
+            for (let i = 0; i < pos.length / 3; i++) {
+              const vx   = pos[i * 3], vy = pos[i * 3 + 1];
+              const dist = Math.sqrt(vx * vx + vy * vy) / r;
+
+              // Two octaves of noise for organic blotchiness
+              const n = noise.simplex2((vx + noiseOff) * 0.55, (vy + noiseOff) * 0.55) * 0.6
+                      + noise.simplex2((vx + noiseOff) * 1.4,  (vy + noiseOff) * 1.4)  * 0.4;
+              const t = Math.max(0, Math.min(1, n * 0.5 + 0.5)); // [0,1]
+
+              // Hue shifts slightly across the surface (yellow-green ↔ blue-green)
+              const hue = 0.29 + t * 0.08;
+              // Saturation: lower in bleached patches, higher in rich green zones
+              const sat = 0.35 + t * 0.35;
+              // Lightness: radial falloff + noise bump; edge is darker, highlights near centre
+              const lum = 0.07 + (1 - Math.pow(dist, 1.2)) * 0.12 + t * 0.09;
+
+              const c = new THREE.Color().setHSL(hue, sat, lum);
+              cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+
+            const pad = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
             pad.rotation.x = -Math.PI / 2;
             pad.rotation.z = Math.random() * Math.PI * 2;
             pad.position.set(x + (Math.random()-0.5)*4, 0.3, z + (Math.random()-0.5)*4);
             lilyPads.push(pad);
             objects.push(pad); scene.add(pad);
+
+            // Veins: one main mid-rib + secondary branches on each side
+            const veinPositions = [];
+            const numPrimary = 7 + Math.floor(Math.random() * 4);
+            for (let i = 0; i < numPrimary; i++) {
+              const angle  = (i / numPrimary) * Math.PI * 2;
+              const reach  = r * (0.78 + Math.random() * 0.18);
+              const ex     = Math.cos(angle) * reach;
+              const ey     = Math.sin(angle) * reach;
+              // Primary vein
+              veinPositions.push(0, 0, 0, ex, ey, 0);
+              // Two short secondary branches per primary
+              for (const side of [-1, 1]) {
+                const t      = 0.45 + Math.random() * 0.25; // branch point along primary
+                const bx     = ex * t, by = ey * t;
+                const bAngle = angle + side * (0.4 + Math.random() * 0.25);
+                const bLen   = reach * (0.22 + Math.random() * 0.16);
+                veinPositions.push(bx, by, 0, bx + Math.cos(bAngle) * bLen, by + Math.sin(bAngle) * bLen, 0);
+              }
+            }
+            const veinGeo = new THREE.BufferGeometry();
+            veinGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(veinPositions), 3));
+            const veinMesh = new THREE.LineSegments(
+              veinGeo,
+              new THREE.LineBasicMaterial({ color: new THREE.Color().setHSL(0.34, 0.35, 0.18) })
+            );
+            veinMesh.rotation.x = -Math.PI / 2;
+            veinMesh.rotation.z = pad.rotation.z;
+            veinMesh.position.set(pad.position.x, 0.31, pad.position.z);
+            objects.push(veinMesh); scene.add(veinMesh);
           });
 
           // Ripple pool
@@ -860,7 +965,104 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       fitStage();
+      resizeShaderCanvas();
     });
+
+    // ── RGB channel-shift shader (right side) ────────────────────────────────
+    const shaderCanvas = document.getElementById('shadercanvas');
+    const sg = shaderCanvas.getContext('webgl');
+
+    function _compileShader(gl, src, type) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    }
+
+    const _rgbVert = `
+      attribute vec2 a_pos;
+      varying vec2 v_uv;
+      void main() {
+        v_uv = a_pos * 0.5 + 0.5;
+        gl_Position = vec4(a_pos, 0.0, 1.0);
+      }`;
+
+    const _rgbFrag = `
+      precision mediump float;
+      uniform sampler2D u_tex;
+      uniform vec2 u_res;
+      uniform float u_time;
+      uniform float u_mouse_x;
+      varying vec2 v_uv;
+      void main() {
+        float angle = u_time;
+        vec2 ro = vec2(cos(angle), sin(angle));
+        angle += radians(120.0);
+        vec2 go = vec2(cos(angle), sin(angle));
+        angle += radians(120.0);
+        vec2 bo = vec2(cos(angle), sin(angle));
+
+        float sz = 0.03 * length(gl_FragCoord.xy - 0.5 * u_res);
+        sz *= u_mouse_x / u_res.x;
+
+        float r = texture2D(u_tex, v_uv - sz * ro / u_res).r;
+        float g = texture2D(u_tex, v_uv - sz * go / u_res).g;
+        float b = texture2D(u_tex, v_uv - sz * bo / u_res).b;
+
+        gl_FragColor = vec4(r, g, b, 1.0);
+      }`;
+
+    const _rgbProg = sg.createProgram();
+    sg.attachShader(_rgbProg, _compileShader(sg, _rgbVert, sg.VERTEX_SHADER));
+    sg.attachShader(_rgbProg, _compileShader(sg, _rgbFrag, sg.FRAGMENT_SHADER));
+    sg.linkProgram(_rgbProg);
+    sg.useProgram(_rgbProg);
+
+    const _aPos    = sg.getAttribLocation(_rgbProg,  'a_pos');
+    const _uTex    = sg.getUniformLocation(_rgbProg, 'u_tex');
+    const _uRes    = sg.getUniformLocation(_rgbProg, 'u_res');
+    const _uTime   = sg.getUniformLocation(_rgbProg, 'u_time');
+    const _uMouseX = sg.getUniformLocation(_rgbProg, 'u_mouse_x');
+
+    const _quadBuf = sg.createBuffer();
+    sg.bindBuffer(sg.ARRAY_BUFFER, _quadBuf);
+    sg.bufferData(sg.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), sg.STATIC_DRAW);
+
+    const _rgbTex = sg.createTexture();
+    sg.bindTexture(sg.TEXTURE_2D, _rgbTex);
+    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_WRAP_S, sg.CLAMP_TO_EDGE);
+    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_WRAP_T, sg.CLAMP_TO_EDGE);
+    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_MIN_FILTER, sg.LINEAR);
+    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_MAG_FILTER, sg.LINEAR);
+
+    function resizeShaderCanvas() {
+      shaderCanvas.width  = window.innerWidth;
+      shaderCanvas.height = window.innerHeight;
+      sg.viewport(0, 0, shaderCanvas.width, shaderCanvas.height);
+    }
+    resizeShaderCanvas();
+
+    let _mouseX = window.innerWidth * 0.5;
+    window.addEventListener('mousemove', e => { _mouseX = e.clientX; });
+
+    function renderRGBShader(srcCanvas, time) {
+      sg.useProgram(_rgbProg);
+      sg.bindBuffer(sg.ARRAY_BUFFER, _quadBuf);
+      sg.enableVertexAttribArray(_aPos);
+      sg.vertexAttribPointer(_aPos, 2, sg.FLOAT, false, 0, 0);
+
+      sg.activeTexture(sg.TEXTURE0);
+      sg.bindTexture(sg.TEXTURE_2D, _rgbTex);
+      sg.pixelStorei(sg.UNPACK_FLIP_Y_WEBGL, true);
+      sg.texImage2D(sg.TEXTURE_2D, 0, sg.RGBA, sg.RGBA, sg.UNSIGNED_BYTE, srcCanvas);
+
+      sg.uniform1i(_uTex, 0);
+      sg.uniform2f(_uRes, shaderCanvas.width, shaderCanvas.height);
+      sg.uniform1f(_uTime, time);
+      sg.uniform1f(_uMouseX, _mouseX);
+
+      sg.drawArrays(sg.TRIANGLE_STRIP, 0, 4);
+    }
 
     // ── Font picker ──────────────────────────────────────────────────────────
     document.getElementById('fontPicker').addEventListener('change', e => {
@@ -878,16 +1080,52 @@
       fitStage();
     });
 
-    // ── Overlay split slider ─────────────────────────────────────────────────
+    // ── Overlay split ────────────────────────────────────────────────────────
     const divider = document.getElementById('divider');
     function setOverlay(pct) {
       stage.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      shaderCanvas.style.clipPath = `inset(0 0 0 ${pct}%)`;
       divider.style.left = pct + '%';
     }
     setOverlay(100);
     document.getElementById('overlay').addEventListener('input', e => {
-      setOverlay(+e.target.value);
+      if (splitMode === 'overlay') setOverlay(+e.target.value);
     });
+
+    // ── Split mode ───────────────────────────────────────────────────────────
+    let splitMode = 'overlay';
+    let sweepTime = 0;
+
+    const modeButtons = {
+      overlay:   document.getElementById('modeOverlay'),
+      proximity: document.getElementById('modeProximity'),
+      sweep:     document.getElementById('modeSweep'),
+    };
+    const overlayControl = document.getElementById('overlayControl');
+
+    function setMode(mode) {
+      splitMode = mode;
+      Object.entries(modeButtons).forEach(([k, btn]) =>
+        btn.classList.toggle('active', k === mode)
+      );
+      overlayControl.style.display = mode === 'overlay' ? '' : 'none';
+      if (mode === 'overlay') setOverlay(+document.getElementById('overlay').value);
+    }
+
+    Object.entries(modeButtons).forEach(([mode, btn]) =>
+      btn.addEventListener('click', () => setMode(mode))
+    );
+
+    function tickSplitMode() {
+      if (splitMode === 'proximity') {
+        const pct = (_mouseX / window.innerWidth) * 100;
+        setOverlay(pct);
+      } else if (splitMode === 'sweep') {
+        sweepTime += 0.008;
+        const pct = 50 + Math.sin(sweepTime) * 48;
+        setOverlay(pct);
+      }
+    }
 
 
     // ── Pause ────────────────────────────────────────────────────────────────
@@ -907,7 +1145,9 @@
       requestAnimationFrame(loop);
       frameNum++;
       currentAnim.update(frameNum);
+      tickSplitMode();
       renderer.render(scene, camera);
+      renderRGBShader(glCanvas, frameNum * 0.016);
       pt.framePre(glCanvas, stage);
     }
     loop();
