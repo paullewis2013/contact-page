@@ -144,6 +144,7 @@
     </span>
     <span><label for="fontSize">Size</label><input id="fontSize" type="range" min="6" max="22" value="11"></span>
     <span><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
+    <button id="rainBtn">Rain: Off</button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
 
@@ -369,10 +370,23 @@
 
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
-      const objects = [], fishes = [], ripples = [], caustics = [], lilyPads = [], skimmers = [];
+      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [];
       const FISH_COUNT = 12;
-      const RIPPLE_COUNT = 14;
-      const ringGeo = new THREE.RingGeometry(1, 1.2, 38);
+      const RIPPLE_COUNT = 80;
+      const RAIN_COUNT  = 90;
+      let rainActive = false;
+      const ringGeo   = new THREE.RingGeometry(1, 1.2, 38);
+      const shadowGeo = new THREE.CircleGeometry(1, 20);
+      const rainGeo   = new THREE.BoxGeometry(0.07, 3.2, 0.07);
+      const rainMat   = new THREE.MeshBasicMaterial({ color: 0xadd8e6, transparent: true, opacity: 0.55 });
+
+      // Petal geometry — teardrop shape via two quadratic curves
+      const petalShape = new THREE.Shape();
+      petalShape.moveTo(0, 0);
+      petalShape.quadraticCurveTo( 0.46, 0.28, 0, 1.0);
+      petalShape.quadraticCurveTo(-0.46, 0.28, 0, 0);
+      const petalGeo = new THREE.ShapeGeometry(petalShape, 8);
+      const PETAL_COLORS = [0xf4a8b8, 0xfad4dc, 0xfdf0f0, 0xfbe8d8, 0xf0c8d8];
 
       // Koi palette: [body hue/sat/lit, fin hue/sat/lit]
       const KOI = [
@@ -428,14 +442,14 @@
 
       return {
         init() {
-          renderer.setClearColor(0x071c1a);
+          renderer.setClearColor(0x0d2e2b);
           camera.position.set(0, 58, 22);
           camera.lookAt(0, 0, 0);
 
           // Pond floor
           const pond = new THREE.Mesh(
             new THREE.CircleGeometry(55, 48),
-            new THREE.MeshBasicMaterial({ color: 0x0c2826 })
+            new THREE.MeshBasicMaterial({ color: 0x0f2e2b })
           );
           pond.rotation.x = -Math.PI / 2;
           pond.position.y = -1.2;
@@ -455,26 +469,14 @@
             objects.push(pad); scene.add(pad);
           });
 
-          // Caustic patches on pond floor
-          for (let i = 0; i < 11; i++) {
-            const r   = 2.0 + Math.random() * 3.5;
-            const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.491, 0.45, 0.13) });
-            const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 10), mat);
-            mesh.rotation.x = -Math.PI / 2;
-            const bx = (Math.random()-0.5)*72, bz = (Math.random()-0.5)*56;
-            mesh.position.set(bx, -1.18, bz);
-            caustics.push({ mesh, mat, noiseOff: Math.random()*100, bx, bz });
-            objects.push(mesh); scene.add(mesh);
-          }
-
           // Ripple pool
           for (let i = 0; i < RIPPLE_COUNT; i++) {
             const mat  = new THREE.MeshBasicMaterial({ color: 0x1e4c48, side: THREE.DoubleSide, transparent: true, opacity: 0 });
             const mesh = new THREE.Mesh(ringGeo, mat);
             mesh.rotation.x = -Math.PI / 2;
-            mesh.position.y = -1.05;
+            mesh.position.y = 0.25;
             mesh.scale.setScalar(0.01);
-            ripples.push({ mesh, mat, active: false, life: 0, maxLife: 0, startScale: 0 });
+            ripples.push({ mesh, mat, active: false, life: 0, maxLife: 0, startScale: 0, maxScale: 9 });
             objects.push(mesh); scene.add(mesh);
           }
 
@@ -490,8 +492,24 @@
 
           for (let i = 0; i < FISH_COUNT; i++) {
             const { group, tailPivot, bodyMat, darkMat } = buildKoi(i);
+
+            // Shadow ellipse on pond floor.
+            // Use a Group for heading so rotation.x = -PI/2 on the mesh
+            // never hits gimbal lock when the parent rotates around Y.
+            const shadowMat  = new THREE.MeshBasicMaterial({
+              color: 0x020a09, transparent: true, opacity: 0.45, depthWrite: false,
+            });
+            const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+            shadowMesh.scale.set(1.5, 4.0, 1); // width × length of the ellipse
+            shadowMesh.rotation.x = -Math.PI / 2; // lay flat — only rotation on this object
+            const shadowGroup = new THREE.Group();
+            shadowGroup.position.y = -1.14;
+            shadowGroup.add(shadowMesh);
+            objects.push(shadowGroup);
+            scene.add(shadowGroup);
+
             const fish = {
-              group, tailPivot, bodyMat, darkMat,
+              group, tailPivot, bodyMat, darkMat, shadowGroup,
               pos: new THREE.Vector3(
                 (Math.random() - 0.5) * 70,
                 0,
@@ -510,43 +528,79 @@
             objects.push(group);
             scene.add(group);
           }
+
+          // Petals — scattered across the pond, above lily pads
+          for (let i = 0; i < 24; i++) {
+            const col  = PETAL_COLORS[Math.floor(Math.random() * PETAL_COLORS.length)];
+            const mat  = new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide });
+            const mesh = new THREE.Mesh(petalGeo, mat);
+            const size = 1.1 + Math.random() * 0.9;
+            mesh.scale.set(size, size, 1);
+            mesh.rotation.x = -Math.PI / 2;
+
+            const group = new THREE.Group();
+            group.position.set(
+              (Math.random() - 0.5) * 100,
+              0.55,
+              (Math.random() - 0.5) * 80
+            );
+            group.rotation.y = Math.random() * Math.PI * 2;
+            group.add(mesh);
+
+            petals.push({
+              group,
+              vx: (Math.random() - 0.5) * 0.04 + 0.018,
+              vz: (Math.random() - 0.5) * 0.04 + 0.010,
+              spin:     (Math.random() < 0.5 ? 1 : -1) * (0.006 + Math.random() * 0.010),
+              noiseOff: Math.random() * 100,
+            });
+            objects.push(group);
+            scene.add(group);
+          }
+
+          // Rain pool — pre-allocated, hidden until toggled on
+          for (let i = 0; i < RAIN_COUNT; i++) {
+            const mesh = new THREE.Mesh(rainGeo, rainMat);
+            mesh.rotation.z =  0.12;  // slight wind angle
+            mesh.rotation.x = -0.04;
+            mesh.visible = false;
+            mesh.position.set(
+              (Math.random() - 0.5) * 100,
+              Math.random() * 50,
+              (Math.random() - 0.5) * 80
+            );
+            raindrops.push({ mesh, speed: 0.55 + Math.random() * 0.35 });
+            objects.push(mesh);
+            scene.add(mesh);
+          }
         },
 
         update(f) {
-          const SPEED = 0.11;
+          const SPEED = 0.072;
           const BX = 42, BZ = 34;
 
-          // Caustic animation
-          caustics.forEach((c, i) => {
-            const t  = f * 0.004 + c.noiseOff;
-            const sc = 0.75 + noise.simplex3(t, i * 0.5, 0) * 0.38;
-            c.mesh.scale.set(sc, sc, sc);
-            c.mesh.position.x = c.bx + noise.simplex3(t * 0.25, i,      0) * 3.5;
-            c.mesh.position.z = c.bz + noise.simplex3(i,         t*0.25, 0) * 3.5;
-            const lit = 0.10 + ((noise.simplex3(t * 0.55, i, 1) + 1) * 0.5) * 0.07;
-            c.mat.color.setHSL(0.491, 0.42, lit);
-          });
-
-          // Spawn ripples — double-ring, near a fish or randomly
-          function spawnRipple(x, z, startScale, maxLifeBase) {
+          // Spawn ripples
+          function spawnRipple(x, z, startScale, maxLifeBase, maxScale = 9, lifeJitter = 60) {
             const r = ripples.find(r => !r.active);
             if (!r) return;
             r.active = true; r.life = 0;
-            r.maxLife = maxLifeBase + Math.random() * 60;
+            r.maxLife    = maxLifeBase + Math.random() * lifeJitter;
             r.startScale = startScale;
-            r.mesh.position.set(x, -1.05, z);
+            r.maxScale   = maxScale;
+            r.mesh.position.set(x, 0.25, z);
             r.mesh.scale.setScalar(startScale);
             r.mat.opacity = 0.85;
           }
           function spawnRippleSet(x, z) {
-            spawnRipple(x, z, 0.1, 140);   // inner ring
-            spawnRipple(x, z, 1.0, 110);   // outer ring
+            spawnRipple(x, z, 0.1, 140, 9);   // inner ring
+            spawnRipple(x, z, 1.0, 110, 9);   // outer ring
           }
-          if (f % 55 === 0) {
+          // Suppress large fish ripples while it's raining
+          if (!rainActive && f % 55 === 0) {
             const fish = fishes[Math.floor(Math.random() * fishes.length)];
             spawnRippleSet(fish.pos.x + (Math.random()-0.5)*3, fish.pos.z + (Math.random()-0.5)*3);
           }
-          if (f % 120 === 0) spawnRippleSet((Math.random()-0.5)*60, (Math.random()-0.5)*44);
+          if (!rainActive && f % 120 === 0) spawnRippleSet((Math.random()-0.5)*60, (Math.random()-0.5)*44);
 
           // Animate ripples — opacity fade so they dissolve smoothly
           ripples.forEach(r => {
@@ -554,7 +608,7 @@
             r.life++;
             const t = r.life / r.maxLife;
             if (t >= 1) { r.active = false; r.mat.opacity = 0; r.mesh.scale.setScalar(0.01); return; }
-            const sc = r.startScale + t * 9;
+            const sc = r.startScale + t * r.maxScale;
             r.mesh.scale.set(sc, sc, sc);
             // Fade in quickly, hold, then dissolve
             const fadeIn  = Math.min(r.life / 12, 1);
@@ -568,7 +622,7 @@
             const { pos, vel, noiseOff } = fish;
 
             // Each koi has its own independent lazy wander
-            const ft = f * 0.0018 + noiseOff;
+            const ft = f * 0.0011 + noiseOff;
             const tx = noise.simplex3(ft, 0, 0) * 34;
             const tz = noise.simplex3(0, ft, 0) * 26;
 
@@ -580,6 +634,14 @@
             // Soft boundary
             if (pos.x >  BX) vel.x -= 0.018; if (pos.x < -BX) vel.x += 0.018;
             if (pos.z >  BZ) vel.z -= 0.018; if (pos.z < -BZ) vel.z += 0.018;
+
+            // Centre repulsor — fish avoid the content zone
+            const rdist = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 1;
+            if (rdist < 20) {
+              const push = (20 - rdist) / 20 * 0.022;
+              vel.x += (pos.x / rdist) * push;
+              vel.z += (pos.z / rdist) * push;
+            }
 
             // Clamp speed
             const spd = Math.sqrt(vel.x*vel.x + vel.z*vel.z) || 1;
@@ -593,12 +655,37 @@
 
             // Slow, graceful tail wag
             const wagAmt = Math.min(spd / SPEED, 1);
-            fish.tailPivot.rotation.y = Math.sin(f * 0.09 * (0.6 + wagAmt) + fish.phase) * 0.42;
+            fish.tailPivot.rotation.y = Math.sin(f * 0.062 * (0.6 + wagAmt) + fish.phase) * 0.30;
+
+            // Shadow follows fish on pond floor, offset to suggest angled light
+            fish.shadowGroup.position.x = pos.x + 2.5;
+            fish.shadowGroup.position.z = pos.z + 2.0;
+            fish.shadowGroup.rotation.y = Math.atan2(vel.x, vel.z);
           });
 
           // Lily pads — gentle drift rotation
           lilyPads.forEach((pad, i) => {
             pad.rotation.z += Math.sin(f * 0.006 + i * 1.7) * 0.0006;
+          });
+
+          // Petals — drift on a light breeze, spin slowly, bob gently
+          petals.forEach((p, i) => {
+            const t = f * 0.0022 + p.noiseOff;
+            p.vx += noise.simplex3(t,        i * 0.6, 3) * 0.0015;
+            p.vz += noise.simplex3(i * 0.6,  t,       3) * 0.0015;
+            const spd = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+            if (spd > 0.065) { p.vx *= 0.065 / spd; p.vz *= 0.065 / spd; }
+
+            p.group.position.x += p.vx;
+            p.group.position.z += p.vz;
+            p.group.position.y  = 0.55 + Math.sin(f * 0.016 + p.noiseOff) * 0.12;
+            p.group.rotation.y += p.spin;
+
+            // Wrap — re-enter from the opposite edge
+            if (p.group.position.x >  56) p.group.position.x = -56;
+            if (p.group.position.x < -56) p.group.position.x =  56;
+            if (p.group.position.z >  44) p.group.position.z = -44;
+            if (p.group.position.z < -44) p.group.position.z =  44;
           });
 
           // Water skimmers — rapid noisy bursts
@@ -615,12 +702,35 @@
             if (Math.abs(s.mesh.position.z) > 30) s.vz *= -0.8;
             if (spd > 0.01) s.mesh.rotation.y = Math.atan2(s.vx, s.vz);
           });
+
+          // Rain
+          raindrops.forEach(r => {
+            r.mesh.visible = rainActive;
+            if (!rainActive) return;
+            r.mesh.position.y -= r.speed;
+            r.mesh.position.x += 0.08;  // drift with wind
+            if (r.mesh.position.y < 0) {
+              spawnRipple(r.mesh.position.x, r.mesh.position.z, 0.02, 28, 2.5, 12);
+              r.mesh.position.set(
+                (Math.random() - 0.5) * 100,
+                40 + Math.random() * 20,
+                (Math.random() - 0.5) * 80
+              );
+            }
+          });
+        },
+
+        toggleRain() {
+          rainActive = !rainActive;
+          return rainActive;
         },
 
         dispose() {
+          rainActive = false;
           clearScene(objects);
-          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0;
+          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0;
         },
+
       };
     })();
 
@@ -688,6 +798,14 @@
 
     document.getElementById('videoPicker').addEventListener('change', () => {
       if (currentAnim === NATURE_VIDEO) { currentAnim.dispose(); currentAnim.init(); }
+    });
+
+    const rainBtn = document.getElementById('rainBtn');
+    rainBtn.addEventListener('click', () => {
+      if (currentAnim !== FISH) return;
+      const on = FISH.toggleRain();
+      rainBtn.textContent = on ? 'Rain: On' : 'Rain: Off';
+      rainBtn.style.background = on ? '#e8f4f8' : '';
     });
 
     // ── Pretext ──────────────────────────────────────────────────────────────
