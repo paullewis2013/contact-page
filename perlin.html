@@ -150,11 +150,33 @@
       z-index: 2;
       transform: translateX(-100%);
     }
+
+    #title {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.2;
+      white-space: pre;
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow: 0 0 18px rgba(255, 255, 255, 0.4);
+      pointer-events: none;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
   <pre id="stage"></pre>
   <canvas id="asciicanvas"></canvas>
+  <pre id="title">                    _ _               _
+  _ __   __ _ _   _| | | _____      _(_)___
+ | '_ \ / _` | | | | | |/ _ \ \ /\ / / / __|
+ | |_) | (_| | |_| | | |  __/\ V  V /| \__ \
+ | .__/ \__,_|\__,_|_|_|\___| \_/\_(_)_|___/
+ |_|</pre>
   <canvas id="glcanvas"></canvas>
   <canvas id="shadercanvas"></canvas>
   <div id="divider"></div>
