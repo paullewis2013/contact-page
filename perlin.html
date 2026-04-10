@@ -92,7 +92,7 @@
       left: 100%;
       width: 100vw;
       height: 100vh;
-      background: #282c34;
+      background: #071c1a;
       pointer-events: none;
       z-index: 2;
       transform: translateX(-100%);
@@ -110,7 +110,7 @@
       <select id="animPicker">
         <option value="terrain">Terrain</option>
         <option value="city">City</option>
-        <option value="fish">Koi Pond</option>
+        <option value="fish" selected>Koi Pond</option>
         <option value="nature">Nature</option>
       </select>
     </span>
@@ -122,7 +122,7 @@
         <option value="video_waterfall.mp4">Waterfall</option>
       </select>
     </span>
-    <span id="terrainControls" style="display: contents;">
+    <span id="terrainControls" style="display: none;">
       <span><label for="smoothness">Smooth</label><input id="smoothness" type="range" min="10" max="100" value="40"></span>
       <span><label for="amplitude">Amp</label><input id="amplitude" type="range" min="0" max="40" value="12"></span>
       <span><label for="velocity">Vel</label><input id="velocity" type="range" min="1" max="7" step="0.5" value="4"></span>
@@ -371,6 +371,7 @@
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
       const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [];
+      let sandMesh = null;
       const FISH_COUNT = 12;
       const RIPPLE_COUNT = 80;
       const RAIN_COUNT  = 90;
@@ -442,18 +443,42 @@
 
       return {
         init() {
-          renderer.setClearColor(0x0d2e2b);
+          renderer.setClearColor(0x071c1a);
           camera.position.set(0, 58, 22);
           camera.lookAt(0, 0, 0);
 
           // Pond floor
           const pond = new THREE.Mesh(
             new THREE.CircleGeometry(55, 48),
-            new THREE.MeshBasicMaterial({ color: 0x0f2e2b })
+            new THREE.MeshBasicMaterial({ color: 0x0c2826 })
           );
           pond.rotation.x = -Math.PI / 2;
           pond.position.y = -1.2;
           objects.push(pond); scene.add(pond);
+
+          // Sand — noise-driven vertex colours, mesh drifts slowly in update()
+          {
+            const geo = new THREE.PlaneGeometry(110, 90, 48, 38);
+            const pos = geo.attributes.position.array;
+            const col = new Float32Array(pos.length);
+            const lo  = new THREE.Color(0x0b2522);
+            const hi  = new THREE.Color(0x173630);
+            for (let i = 0; i < pos.length / 3; i++) {
+              const vx = pos[i * 3], vy = pos[i * 3 + 1];
+              const n = (
+                noise.simplex2(vx * 0.032, vy * 0.032) * 0.55 +
+                noise.simplex2(vx * 0.075, vy * 0.075) * 0.30 +
+                noise.simplex2(vx * 0.16,  vy * 0.16)  * 0.15
+              ) * 0.5 + 0.5;
+              const c = lo.clone().lerp(hi, Math.pow(n, 1.3));
+              col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+            sandMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+            sandMesh.rotation.x = -Math.PI / 2;
+            sandMesh.position.y = -1.19;
+            objects.push(sandMesh); scene.add(sandMesh);
+          }
 
           // Lily pads
           [[-20,10],[24,-6],[-4,-22],[32,16],[-26,-4],[12,26],[-16,-16],[28,4],[0,18],[-30,20]].forEach(([x,z]) => {
@@ -497,7 +522,7 @@
             // Use a Group for heading so rotation.x = -PI/2 on the mesh
             // never hits gimbal lock when the parent rotates around Y.
             const shadowMat  = new THREE.MeshBasicMaterial({
-              color: 0x020a09, transparent: true, opacity: 0.45, depthWrite: false,
+              color: 0x010504, transparent: true, opacity: 0.72, depthWrite: false,
             });
             const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
             shadowMesh.scale.set(1.5, 4.0, 1); // width × length of the ellipse
@@ -623,8 +648,8 @@
 
             // Each koi has its own independent lazy wander
             const ft = f * 0.0011 + noiseOff;
-            const tx = noise.simplex3(ft, 0, 0) * 34;
-            const tz = noise.simplex3(0, ft, 0) * 26;
+            const tx = noise.simplex3(ft, 0, 0) * 40;
+            const tz = noise.simplex3(0, ft, 0) * 32;
 
             const ddx = tx - pos.x, ddz = tz - pos.z;
             const dl  = Math.sqrt(ddx*ddx + ddz*ddz) || 1;
@@ -703,6 +728,13 @@
             if (spd > 0.01) s.mesh.rotation.y = Math.atan2(s.vx, s.vz);
           });
 
+          // Sand drift — translate the whole plane slowly through noise
+          {
+            const st = f * 0.007;
+            sandMesh.position.x = noise.simplex2(st, 0)      * 10;
+            sandMesh.position.z = noise.simplex2(0,  st * 0.7) * 8;
+          }
+
           // Rain
           raindrops.forEach(r => {
             r.mesh.visible = rainActive;
@@ -726,7 +758,7 @@
         },
 
         dispose() {
-          rainActive = false;
+          rainActive = false; sandMesh = null;
           clearScene(objects);
           fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0;
         },
@@ -783,8 +815,8 @@
     })();
 
     const ANIM_MAP = { terrain: TERRAIN, city: CITY, fish: FISH, nature: NATURE_VIDEO };
-    let currentAnim = TERRAIN;
-    TERRAIN.init();
+    let currentAnim = FISH;
+    FISH.init();
 
     document.getElementById('animPicker').addEventListener('change', e => {
       currentAnim.dispose();
