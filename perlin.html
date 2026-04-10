@@ -7,7 +7,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #fff;
+      background: #fafafa;
       overflow: hidden;
       margin: 0;
     }
@@ -75,6 +75,7 @@
     }
     #pauseBtn:hover { background: #f0f0f0; }
 
+
     #glcanvas {
       position: fixed;
       top: 0; left: 0;
@@ -91,7 +92,7 @@
       left: 100%;
       width: 100vw;
       height: 100vh;
-      background: white;
+      background: #282c34;
       pointer-events: none;
       z-index: 2;
       transform: translateX(-100%);
@@ -104,9 +105,28 @@
   <div id="divider"></div>
 
   <div id="controls">
-    <span><label for="smoothness">Smooth</label><input id="smoothness" type="range" min="10" max="100" value="40"></span>
-    <span><label for="amplitude">Amp</label><input id="amplitude" type="range" min="0" max="40" value="12"></span>
-    <span><label for="velocity">Vel</label><input id="velocity" type="range" min="1" max="7" step="0.5" value="4"></span>
+    <span>
+      <label for="animPicker">Scene</label>
+      <select id="animPicker">
+        <option value="terrain">Terrain</option>
+        <option value="city">City</option>
+        <option value="fish">Koi Pond</option>
+        <option value="nature">Nature</option>
+      </select>
+    </span>
+    <span id="videoControls" style="display: none;">
+      <label for="videoPicker">Clip</label>
+      <select id="videoPicker">
+        <option value="video_waves.mp4">Waves</option>
+        <option value="video_fire.mp4">Fire</option>
+        <option value="video_waterfall.mp4">Waterfall</option>
+      </select>
+    </span>
+    <span id="terrainControls" style="display: contents;">
+      <span><label for="smoothness">Smooth</label><input id="smoothness" type="range" min="10" max="100" value="40"></span>
+      <span><label for="amplitude">Amp</label><input id="amplitude" type="range" min="0" max="40" value="12"></span>
+      <span><label for="velocity">Vel</label><input id="velocity" type="range" min="1" max="7" step="0.5" value="4"></span>
+    </span>
     <span>
       <label for="fontPicker">Font</label>
       <select id="fontPicker">
@@ -142,12 +162,11 @@
   (() => {
     'use strict';
 
-    // ── Sizing ──────────────────────────────────────────────────────────────
+    // ── Sizing ───────────────────────────────────────────────────────────────
     let fontSize = 11;
     let cols, rows;
 
     function charGrid() {
-      // Courier New: width ≈ 0.6×, height ≈ 1.15× font-size
       return {
         cols: Math.floor(window.innerWidth  / (fontSize * 0.6)),
         rows: Math.floor(window.innerHeight / (fontSize * 1.15)),
@@ -156,7 +175,6 @@
 
     const stage = document.getElementById('stage');
 
-    // Stretch letter-spacing and line-height so chars exactly fill the viewport
     function fitStage() {
       const charCssW = window.innerWidth  / cols;
       const charCssH = window.innerHeight / rows;
@@ -164,57 +182,513 @@
       stage.style.lineHeight    = charCssH + 'px';
     }
 
-    // ── Three.js offscreen scene ─────────────────────────────────────────────
+    // ── Three.js ─────────────────────────────────────────────────────────────
     const glCanvas = document.getElementById('glcanvas');
-
     const scene    = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0xffffff);  // white bg matches page background
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.rotation.order = 'YXZ';
-    camera.position.set(64, 48, 64);
-    camera.rotation.x = -Math.PI / 8;
-    camera.rotation.y =  Math.PI / 4;
 
-    // Lighting
-    scene.add(new THREE.HemisphereLight(0xdc322f, 0x6c71c4, 0.4));
-
-    // ── Sphere grid ──────────────────────────────────────────────────────────
-    const sphereGeos = [
-      new THREE.SphereGeometry(0.5, 10, 10),
-      new THREE.SphereGeometry(1.0, 12, 12),
-      new THREE.SphereGeometry(1.5, 16, 16),
-      new THREE.SphereGeometry(2.0, 16, 16),
-    ];
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
 
     noise.seed(Math.random());
 
-    // Precompute each sphere's hue from its distance to centre of the grid
-    const CX = 31.5, CZ = 31.5;
-    const MAX_DIST = Math.sqrt(CX * CX + CZ * CZ); // ≈44.5
-
-    const grid = [];
-    const hues = [];   // per-sphere hue (0-1), constant
-
-    for (let i = 0; i < 64; i++) {
-      grid[i] = [];
-      hues[i] = [];
-      for (let j = 0; j < 64; j++) {
-        const dist = Math.sqrt((i - CX) ** 2 + (j - CZ) ** 2);
-        const hue  = dist / MAX_DIST; // 0 = centre, 1 = corner
-
-        hues[i][j] = hue;
-
-        const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(hue, 0.9, 0.5) });
-        const geo = sphereGeos[Math.floor(Math.random() * sphereGeos.length)];
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(-32 + i, 1.5 * noise.simplex3(i, j, 0), -32 + j);
-        grid[i][j] = mesh;
-        scene.add(mesh);
-      }
+    // ── Helper ───────────────────────────────────────────────────────────────
+    function clearScene(objects) {
+      objects.forEach(o => scene.remove(o));
+      objects.length = 0;
     }
+
+    // ── TERRAIN ──────────────────────────────────────────────────────────────
+    const TERRAIN = (() => {
+      const objects = [], grid = [], hues = [];
+      const sphereGeos = [
+        new THREE.SphereGeometry(0.5, 10, 10),
+        new THREE.SphereGeometry(1.0, 12, 12),
+        new THREE.SphereGeometry(1.5, 16, 16),
+        new THREE.SphereGeometry(2.0, 16, 16),
+      ];
+      const CX = 31.5, CZ = 31.5;
+      const MAX_DIST = Math.sqrt(CX * CX + CZ * CZ);
+
+      return {
+        init() {
+          renderer.setClearColor(0xfafafa);
+          camera.position.set(64, 48, 64);
+          camera.rotation.x = -Math.PI / 8;
+          camera.rotation.y =  Math.PI / 4;
+          camera.rotation.z = 0;
+
+          for (let i = 0; i < 64; i++) {
+            grid[i] = []; hues[i] = [];
+            for (let j = 0; j < 64; j++) {
+              const hue = Math.sqrt((i - CX) ** 2 + (j - CZ) ** 2) / MAX_DIST;
+              hues[i][j] = hue;
+              const mat  = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(hue, 0.9, 0.5) });
+              const geo  = sphereGeos[Math.floor(Math.random() * sphereGeos.length)];
+              const mesh = new THREE.Mesh(geo, mat);
+              mesh.position.set(-32 + i, 1.5 * noise.simplex3(i, j, 0), -32 + j);
+              grid[i][j] = mesh;
+              objects.push(mesh);
+              scene.add(mesh);
+            }
+          }
+        },
+        update(f) {
+          const amp        = +document.getElementById('amplitude').value;
+          const smoothness = +document.getElementById('smoothness').value;
+          const vel        = Math.pow(2, 11 - +document.getElementById('velocity').value);
+          for (let i = 0; i < 64; i++) {
+            for (let j = 0; j < 64; j++) {
+              const mesh = grid[i][j];
+              const y = 5 + amp * noise.simplex3(i / smoothness, j / smoothness, f / vel);
+              mesh.position.y = y;
+              const normY = amp > 0 ? Math.max(0, Math.min(1, (y - 5) / amp * 0.5 + 0.5)) : 0.5;
+              mesh.material.color.setHSL(hues[i][j], 0.9, 0.15 + 0.75 * normY);
+            }
+          }
+        },
+        dispose() { clearScene(objects); grid.length = 0; hues.length = 0; },
+      };
+    })();
+
+    // ── CITY ─────────────────────────────────────────────────────────────────
+    const CITY = (() => {
+      const objects = [], winMeshes = [];
+      const GRID = 7, BLOCK = 8, GAP = 4, STEP = 12;
+      const HALF = ((GRID - 1) * STEP) / 2;
+
+      return {
+        init() {
+          renderer.setClearColor(0x07070e);
+          camera.position.set(78, 60, 78);
+          camera.lookAt(0, 10, 0);
+
+          // Ground
+          const gnd = new THREE.Mesh(
+            new THREE.PlaneGeometry(400, 400),
+            new THREE.MeshBasicMaterial({ color: 0x0c0c15 })
+          );
+          gnd.rotation.x = -Math.PI / 2;
+          gnd.position.y = -0.1;
+          objects.push(gnd); scene.add(gnd);
+
+          // Street grid
+          const streetMat = new THREE.MeshBasicMaterial({ color: 0x14141e });
+          for (let i = 0; i <= GRID; i++) {
+            const p = -HALF - STEP / 2 + i * STEP;
+            const sh = new THREE.Mesh(new THREE.PlaneGeometry(GRID * STEP + GAP, GAP), streetMat);
+            sh.rotation.x = -Math.PI / 2; sh.position.set(0, -0.05, p);
+            objects.push(sh); scene.add(sh);
+            const sv = new THREE.Mesh(new THREE.PlaneGeometry(GAP, GRID * STEP + GAP), streetMat);
+            sv.rotation.x = -Math.PI / 2; sv.position.set(p, -0.05, 0);
+            objects.push(sv); scene.add(sv);
+          }
+
+          // Buildings
+          for (let gi = 0; gi < GRID; gi++) {
+            for (let gj = 0; gj < GRID; gj++) {
+              if (Math.random() < 0.1) continue;
+              const cx = -HALF + gi * STEP, cz = -HALF + gj * STEP;
+
+              const slots = Math.random() < 0.35
+                ? [{ ox: -BLOCK * 0.23, ow: BLOCK * 0.44 }, { ox: BLOCK * 0.23, ow: BLOCK * 0.44 }]
+                : [{ ox: 0, ow: BLOCK * 0.82 }];
+
+              slots.forEach(({ ox, ow }) => {
+                const bw = ow * (0.72 + Math.random() * 0.28);
+                const bd = ow * (0.72 + Math.random() * 0.28);
+                const bh = 4 + Math.random() * 26;
+                const bx = cx + ox;
+
+                const shade = 0.07 + Math.random() * 0.1;
+                const bMesh = new THREE.Mesh(
+                  new THREE.BoxGeometry(bw, bh, bd),
+                  new THREE.MeshBasicMaterial({ color: new THREE.Color(shade, shade, shade + 0.025) })
+                );
+                bMesh.position.set(bx, bh / 2, cz);
+                objects.push(bMesh); scene.add(bMesh);
+
+                // Windows on each face
+                const floors   = Math.max(2, Math.floor(bh / 2.6));
+                const wCols    = Math.max(1, Math.floor(Math.min(bw, bd) / 1.6));
+                const floorH   = bh / floors;
+
+                for (let fl = 0; fl < floors; fl++) {
+                  const wy = fl * floorH + 0.7;
+                  for (let w = 0; w < wCols; w++) {
+                    // +X / -X faces
+                    const wz = cz - bd/2 + bd / wCols * (w + 0.5);
+                    [[bx + bw/2 + 0.04, 'x'], [bx - bw/2 - 0.04, 'x']].forEach(([wx]) => {
+                      const lit = Math.random() > 0.28;
+                      const wm = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.06, 0.52, 0.62),
+                        new THREE.MeshBasicMaterial({ color: lit ? 0xf0dc60 : 0x090912 })
+                      );
+                      wm.position.set(wx, wy, wz);
+                      winMeshes.push({ mesh: wm, lit });
+                      objects.push(wm); scene.add(wm);
+                    });
+                    // +Z / -Z faces
+                    const wx2 = bx - bw/2 + bw / wCols * (w + 0.5);
+                    [[cz + bd/2 + 0.04], [cz - bd/2 - 0.04]].forEach(([wz2]) => {
+                      const lit = Math.random() > 0.28;
+                      const wm = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.62, 0.52, 0.06),
+                        new THREE.MeshBasicMaterial({ color: lit ? 0xf0dc60 : 0x090912 })
+                      );
+                      wm.position.set(wx2, wy, wz2);
+                      winMeshes.push({ mesh: wm, lit });
+                      objects.push(wm); scene.add(wm);
+                    });
+                  }
+                }
+              });
+            }
+          }
+        },
+
+        update(f) {
+          const a = f * 0.0018;
+          camera.position.set(Math.cos(a) * 88, 52 + Math.sin(a * 0.4) * 10, Math.sin(a) * 88);
+          camera.lookAt(0, 10, 0);
+
+          // Window flicker
+          if (f % 5 === 0 && winMeshes.length) {
+            const w = winMeshes[Math.floor(Math.random() * winMeshes.length)];
+            w.lit = !w.lit;
+            w.mesh.material.color.setHex(w.lit ? 0xf0dc60 : 0x090912);
+          }
+        },
+
+        dispose() { clearScene(objects); winMeshes.length = 0; },
+      };
+    })();
+
+    // ── KOI POND ─────────────────────────────────────────────────────────────
+    const FISH = (() => {
+      const objects = [], fishes = [], ripples = [], caustics = [], lilyPads = [], skimmers = [];
+      const FISH_COUNT = 12;
+      const RIPPLE_COUNT = 14;
+      const ringGeo = new THREE.RingGeometry(1, 1.2, 38);
+
+      // Koi palette: [body hue/sat/lit, fin hue/sat/lit]
+      const KOI = [
+        { b: [0.05, 0.88, 0.58], d: [0.05, 0.88, 0.30] }, // orange
+        { b: [0.08, 0.12, 0.90], d: [0.08, 0.12, 0.62] }, // cream/white
+        { b: [0.02, 0.82, 0.50], d: [0.02, 0.82, 0.28] }, // deep red
+        { b: [0.11, 0.90, 0.60], d: [0.11, 0.90, 0.34] }, // gold
+        { b: [0.04, 0.85, 0.54], d: [0.04, 0.85, 0.28] }, // burnt orange
+        { b: [0.09, 0.18, 0.86], d: [0.09, 0.18, 0.58] }, // pale cream
+      ];
+
+      // Shared geometry
+      const bodyGeo   = new THREE.SphereGeometry(1, 10, 7);
+      const tailGeo   = new THREE.BoxGeometry(0.1, 2.6, 2.4);
+      const dorsalGeo = new THREE.BoxGeometry(0.09, 1.2, 0.95);
+      const eyeGeo    = new THREE.SphereGeometry(0.18, 6, 6);
+      const eyeMat    = new THREE.MeshBasicMaterial({ color: 0x060404 });
+
+      function buildKoi(idx) {
+        const pal     = KOI[idx % KOI.length];
+        const bodyMat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(...pal.b) });
+        const darkMat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(...pal.d) });
+
+        const group = new THREE.Group();
+
+        // Body — plump, elongated along Z
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.scale.set(1.4, 1.0, 3.5);
+        group.add(body);
+
+        // Tail pivot
+        const tailPivot = new THREE.Group();
+        tailPivot.position.z = -3.2;
+        const tailFin = new THREE.Mesh(tailGeo, darkMat);
+        tailFin.position.z = -1.2;
+        tailPivot.add(tailFin);
+        group.add(tailPivot);
+
+        // Dorsal fin
+        const dorsal = new THREE.Mesh(dorsalGeo, darkMat);
+        dorsal.position.set(0, 1.15, 0.3);
+        group.add(dorsal);
+
+        // Eyes
+        [-1, 1].forEach(s => {
+          const eye = new THREE.Mesh(eyeGeo, eyeMat);
+          eye.position.set(s * 1.2, 0.35, 2.9);
+          group.add(eye);
+        });
+
+        return { group, tailPivot, bodyMat, darkMat };
+      }
+
+      return {
+        init() {
+          renderer.setClearColor(0x071c1a);
+          camera.position.set(0, 58, 22);
+          camera.lookAt(0, 0, 0);
+
+          // Pond floor
+          const pond = new THREE.Mesh(
+            new THREE.CircleGeometry(55, 48),
+            new THREE.MeshBasicMaterial({ color: 0x0c2826 })
+          );
+          pond.rotation.x = -Math.PI / 2;
+          pond.position.y = -1.2;
+          objects.push(pond); scene.add(pond);
+
+          // Lily pads
+          [[-20,10],[24,-6],[-4,-22],[32,16],[-26,-4],[12,26],[-16,-16],[28,4],[0,18],[-30,20]].forEach(([x,z]) => {
+            const r   = 2.4 + Math.random() * 2.8;
+            const pad = new THREE.Mesh(
+              new THREE.CircleGeometry(r, 16),
+              new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.33, 0.55, 0.11) })
+            );
+            pad.rotation.x = -Math.PI / 2;
+            pad.rotation.z = Math.random() * Math.PI * 2;
+            pad.position.set(x + (Math.random()-0.5)*4, 0.3, z + (Math.random()-0.5)*4);
+            lilyPads.push(pad);
+            objects.push(pad); scene.add(pad);
+          });
+
+          // Caustic patches on pond floor
+          for (let i = 0; i < 11; i++) {
+            const r   = 2.0 + Math.random() * 3.5;
+            const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.491, 0.45, 0.13) });
+            const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 10), mat);
+            mesh.rotation.x = -Math.PI / 2;
+            const bx = (Math.random()-0.5)*72, bz = (Math.random()-0.5)*56;
+            mesh.position.set(bx, -1.18, bz);
+            caustics.push({ mesh, mat, noiseOff: Math.random()*100, bx, bz });
+            objects.push(mesh); scene.add(mesh);
+          }
+
+          // Ripple pool
+          for (let i = 0; i < RIPPLE_COUNT; i++) {
+            const mat  = new THREE.MeshBasicMaterial({ color: 0x1e4c48, side: THREE.DoubleSide, transparent: true, opacity: 0 });
+            const mesh = new THREE.Mesh(ringGeo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.y = -1.05;
+            mesh.scale.setScalar(0.01);
+            ripples.push({ mesh, mat, active: false, life: 0, maxLife: 0, startScale: 0 });
+            objects.push(mesh); scene.add(mesh);
+          }
+
+          // Water skimmers — small dark bugs that zip on the surface
+          const skimGeo = new THREE.BoxGeometry(0.28, 0.1, 0.65);
+          for (let i = 0; i < 4; i++) {
+            const mat  = new THREE.MeshBasicMaterial({ color: 0x071210 });
+            const mesh = new THREE.Mesh(skimGeo, mat);
+            mesh.position.set((Math.random()-0.5)*56, 0.45, (Math.random()-0.5)*40);
+            skimmers.push({ mesh, vx: (Math.random()-0.5)*0.3, vz: (Math.random()-0.5)*0.3, noiseOff: Math.random()*100 });
+            objects.push(mesh); scene.add(mesh);
+          }
+
+          for (let i = 0; i < FISH_COUNT; i++) {
+            const { group, tailPivot, bodyMat, darkMat } = buildKoi(i);
+            const fish = {
+              group, tailPivot, bodyMat, darkMat,
+              pos: new THREE.Vector3(
+                (Math.random() - 0.5) * 70,
+                0,
+                (Math.random() - 0.5) * 55
+              ),
+              vel: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.08,
+                0,
+                (Math.random() - 0.5) * 0.08
+              ),
+              phase:      Math.random() * Math.PI * 2,
+              noiseOff:   i * 8.31,
+              palIdx:     i % KOI.length,
+            };
+            fishes.push(fish);
+            objects.push(group);
+            scene.add(group);
+          }
+        },
+
+        update(f) {
+          const SPEED = 0.11;
+          const BX = 42, BZ = 34;
+
+          // Caustic animation
+          caustics.forEach((c, i) => {
+            const t  = f * 0.004 + c.noiseOff;
+            const sc = 0.75 + noise.simplex3(t, i * 0.5, 0) * 0.38;
+            c.mesh.scale.set(sc, sc, sc);
+            c.mesh.position.x = c.bx + noise.simplex3(t * 0.25, i,      0) * 3.5;
+            c.mesh.position.z = c.bz + noise.simplex3(i,         t*0.25, 0) * 3.5;
+            const lit = 0.10 + ((noise.simplex3(t * 0.55, i, 1) + 1) * 0.5) * 0.07;
+            c.mat.color.setHSL(0.491, 0.42, lit);
+          });
+
+          // Spawn ripples — double-ring, near a fish or randomly
+          function spawnRipple(x, z, startScale, maxLifeBase) {
+            const r = ripples.find(r => !r.active);
+            if (!r) return;
+            r.active = true; r.life = 0;
+            r.maxLife = maxLifeBase + Math.random() * 60;
+            r.startScale = startScale;
+            r.mesh.position.set(x, -1.05, z);
+            r.mesh.scale.setScalar(startScale);
+            r.mat.opacity = 0.85;
+          }
+          function spawnRippleSet(x, z) {
+            spawnRipple(x, z, 0.1, 140);   // inner ring
+            spawnRipple(x, z, 1.0, 110);   // outer ring
+          }
+          if (f % 55 === 0) {
+            const fish = fishes[Math.floor(Math.random() * fishes.length)];
+            spawnRippleSet(fish.pos.x + (Math.random()-0.5)*3, fish.pos.z + (Math.random()-0.5)*3);
+          }
+          if (f % 120 === 0) spawnRippleSet((Math.random()-0.5)*60, (Math.random()-0.5)*44);
+
+          // Animate ripples — opacity fade so they dissolve smoothly
+          ripples.forEach(r => {
+            if (!r.active) return;
+            r.life++;
+            const t = r.life / r.maxLife;
+            if (t >= 1) { r.active = false; r.mat.opacity = 0; r.mesh.scale.setScalar(0.01); return; }
+            const sc = r.startScale + t * 9;
+            r.mesh.scale.set(sc, sc, sc);
+            // Fade in quickly, hold, then dissolve
+            const fadeIn  = Math.min(r.life / 12, 1);
+            const fadeOut = Math.pow(1 - t, 1.8);
+            r.mat.opacity = fadeIn * fadeOut * 0.72;
+            const lit = 0.14 + (1 - t) * 0.08;
+            r.mat.color.setHSL(0.491, 0.50, lit);
+          });
+
+          fishes.forEach(fish => {
+            const { pos, vel, noiseOff } = fish;
+
+            // Each koi has its own independent lazy wander
+            const ft = f * 0.0018 + noiseOff;
+            const tx = noise.simplex3(ft, 0, 0) * 34;
+            const tz = noise.simplex3(0, ft, 0) * 26;
+
+            const ddx = tx - pos.x, ddz = tz - pos.z;
+            const dl  = Math.sqrt(ddx*ddx + ddz*ddz) || 1;
+            vel.x += (ddx / dl) * 0.006;
+            vel.z += (ddz / dl) * 0.006;
+
+            // Soft boundary
+            if (pos.x >  BX) vel.x -= 0.018; if (pos.x < -BX) vel.x += 0.018;
+            if (pos.z >  BZ) vel.z -= 0.018; if (pos.z < -BZ) vel.z += 0.018;
+
+            // Clamp speed
+            const spd = Math.sqrt(vel.x*vel.x + vel.z*vel.z) || 1;
+            if (spd > SPEED) { vel.x *= SPEED/spd; vel.z *= SPEED/spd; }
+
+            pos.x += vel.x; pos.z += vel.z;
+            fish.group.position.set(pos.x, -0.8, pos.z);
+
+            // Orient nose (+z) along velocity
+            if (spd > 0.001) fish.group.lookAt(pos.x + vel.x, -0.8, pos.z + vel.z);
+
+            // Slow, graceful tail wag
+            const wagAmt = Math.min(spd / SPEED, 1);
+            fish.tailPivot.rotation.y = Math.sin(f * 0.09 * (0.6 + wagAmt) + fish.phase) * 0.42;
+          });
+
+          // Lily pads — gentle drift rotation
+          lilyPads.forEach((pad, i) => {
+            pad.rotation.z += Math.sin(f * 0.006 + i * 1.7) * 0.0006;
+          });
+
+          // Water skimmers — rapid noisy bursts
+          skimmers.forEach((s, i) => {
+            const t = f * 0.009 + s.noiseOff;
+            s.vx += noise.simplex3(t, i,  0) * 0.055;
+            s.vz += noise.simplex3(i, t,  0) * 0.055;
+            const spd = Math.sqrt(s.vx*s.vx + s.vz*s.vz);
+            const maxSpd = 0.55;
+            if (spd > maxSpd) { s.vx *= maxSpd/spd; s.vz *= maxSpd/spd; }
+            s.mesh.position.x += s.vx;
+            s.mesh.position.z += s.vz;
+            if (Math.abs(s.mesh.position.x) > 38) s.vx *= -0.8;
+            if (Math.abs(s.mesh.position.z) > 30) s.vz *= -0.8;
+            if (spd > 0.01) s.mesh.rotation.y = Math.atan2(s.vx, s.vz);
+          });
+        },
+
+        dispose() {
+          clearScene(objects);
+          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0;
+        },
+      };
+    })();
+
+    // ── NATURE VIDEO ─────────────────────────────────────────────────────────
+    const NATURE_VIDEO = (() => {
+      const objects = [];
+      let videoEl = null;
+
+      function buildPlane(src) {
+        if (videoEl) { videoEl.pause(); videoEl.src = ''; videoEl.load(); }
+        clearScene(objects);
+
+        renderer.setClearColor(0x000000);
+        camera.position.set(0, 0, 5);
+        camera.rotation.set(0, 0, 0);
+
+        videoEl = document.createElement('video');
+        videoEl.src = src;
+        videoEl.loop = true;
+        videoEl.muted = true;
+        videoEl.playsInline = true;
+        videoEl.autoplay = true;
+        videoEl.play().catch(() => {});
+
+        const tex = new THREE.VideoTexture(videoEl);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+
+        const aspect = window.innerWidth / window.innerHeight;
+        const h = 2 * 5 * Math.tan(THREE.MathUtils.degToRad(22.5));
+        const plane = new THREE.Mesh(
+          new THREE.PlaneGeometry(h * aspect, h),
+          new THREE.MeshBasicMaterial({ map: tex })
+        );
+        objects.push(plane);
+        scene.add(plane);
+      }
+
+      return {
+        init() {
+          const src = document.getElementById('videoPicker').value;
+          buildPlane(src);
+        },
+        update() {},
+        dispose() {
+          clearScene(objects);
+          if (videoEl) { videoEl.pause(); videoEl.src = ''; videoEl.load(); videoEl = null; }
+        },
+      };
+    })();
+
+    const ANIM_MAP = { terrain: TERRAIN, city: CITY, fish: FISH, nature: NATURE_VIDEO };
+    let currentAnim = TERRAIN;
+    TERRAIN.init();
+
+    document.getElementById('animPicker').addEventListener('change', e => {
+      currentAnim.dispose();
+      currentAnim = ANIM_MAP[e.target.value];
+      currentAnim.init();
+      document.getElementById('terrainControls').style.display =
+        e.target.value === 'terrain' ? 'contents' : 'none';
+      document.getElementById('videoControls').style.display =
+        e.target.value === 'nature' ? '' : 'none';
+    });
+
+    document.getElementById('videoPicker').addEventListener('change', () => {
+      if (currentAnim === NATURE_VIDEO) { currentAnim.dispose(); currentAnim.init(); }
+    });
 
     // ── Pretext ──────────────────────────────────────────────────────────────
     ({ cols, rows } = charGrid());
@@ -224,44 +698,45 @@
       color: true,
       satBoost: 2.8,
       lumBoost: 1.4,
-      edgeThreshold: 0.28,
-      edgeColor: '#000',
     });
     fitStage();
 
     window.addEventListener('resize', () => {
       ({ cols, rows } = charGrid());
       pt.resize(cols, rows);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
       fitStage();
     });
 
     // ── Font picker ──────────────────────────────────────────────────────────
-    document.getElementById('fontPicker').addEventListener('change', (e) => {
+    document.getElementById('fontPicker').addEventListener('change', e => {
       stage.style.fontFamily = e.target.value;
       fitStage();
     });
 
     // ── Font size slider ─────────────────────────────────────────────────────
-    document.getElementById('fontSize').addEventListener('input', (e) => {
+    document.getElementById('fontSize').addEventListener('input', e => {
       fontSize = +e.target.value;
       stage.style.fontSize = fontSize + 'px';
       ({ cols, rows } = charGrid());
       pt.resize(cols, rows);
-      pt._preEl = null; // force span reallocation at new grid size
+      pt._preEl = null;
       fitStage();
     });
 
-
-    // ── Overlay split slider (left = WebGL, right = ASCII) ──────────────────
+    // ── Overlay split slider ─────────────────────────────────────────────────
     const divider = document.getElementById('divider');
     function setOverlay(pct) {
       stage.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
       divider.style.left = pct + '%';
     }
     setOverlay(100);
-    document.getElementById('overlay').addEventListener('input', (e) => {
+    document.getElementById('overlay').addEventListener('input', e => {
       setOverlay(+e.target.value);
     });
+
 
     // ── Pause ────────────────────────────────────────────────────────────────
     let running = true;
@@ -279,24 +754,7 @@
       if (!running) return;
       requestAnimationFrame(loop);
       frameNum++;
-
-      const amp        = +document.getElementById('amplitude').value;
-      const smoothness = +document.getElementById('smoothness').value;
-      const vel        = Math.pow(2, 11 - +document.getElementById('velocity').value);
-
-      for (let i = 0; i < 64; i++) {
-        for (let j = 0; j < 64; j++) {
-          const mesh = grid[i][j];
-          const y = 5 + amp * noise.simplex3(i / smoothness, j / smoothness, frameNum / vel);
-          mesh.position.y = y;
-
-          // Lightness driven by height: valleys dark, peaks bright
-          const normY = amp > 0 ? Math.max(0, Math.min(1, (y - 5) / amp * 0.5 + 0.5)) : 0.5;
-          const lightness = 0.15 + 0.75 * normY;
-          mesh.material.color.setHSL(hues[i][j], 0.9, lightness);
-        }
-      }
-
+      currentAnim.update(frameNum);
       renderer.render(scene, camera);
       pt.framePre(glCanvas, stage);
     }
