@@ -21,7 +21,7 @@
       line-height: 1.15;
       letter-spacing: 0.05em;
       white-space: pre;
-      font-family: 'Courier New', Courier, monospace;
+      font-family: Consolas, monospace;
     }
 
     /* Top mode bar */
@@ -157,44 +157,14 @@
   </div>
 
   <div id="controls">
+<span><label for="fontSize">Size</label><input id="fontSize" type="range" min="6" max="22" value="11"></span>
     <span>
-      <label for="animPicker">Scene</label>
-      <select id="animPicker">
-        <option value="terrain">Terrain</option>
-        <option value="city">City</option>
-        <option value="fish" selected>Koi Pond</option>
-        <option value="nature">Nature</option>
+      <label for="effectPicker">Effect</label>
+      <select id="effectPicker">
+        <option value="none">None</option>
+        <option value="rgb" selected>RGB</option>
       </select>
     </span>
-    <span id="videoControls" style="display: none;">
-      <label for="videoPicker">Clip</label>
-      <select id="videoPicker">
-        <option value="video_waves.mp4">Waves</option>
-        <option value="video_fire.mp4">Fire</option>
-        <option value="video_waterfall.mp4">Waterfall</option>
-      </select>
-    </span>
-    <span id="terrainControls" style="display: none;">
-      <span><label for="smoothness">Smooth</label><input id="smoothness" type="range" min="10" max="100" value="40"></span>
-      <span><label for="amplitude">Amp</label><input id="amplitude" type="range" min="0" max="40" value="12"></span>
-      <span><label for="velocity">Vel</label><input id="velocity" type="range" min="1" max="7" step="0.5" value="4"></span>
-    </span>
-    <span>
-      <label for="fontPicker">Font</label>
-      <select id="fontPicker">
-        <option value="Georgia, serif" selected>Georgia</option>
-        <option value="Palatino Linotype, serif">Palatino</option>
-        <option value="Times New Roman, serif">Times New Roman</option>
-        <option value="Arial, sans-serif">Arial</option>
-        <option value="Helvetica, sans-serif">Helvetica</option>
-        <option value="Verdana, sans-serif">Verdana</option>
-        <option value="Trebuchet MS, sans-serif">Trebuchet</option>
-        <option value="Impact, sans-serif">Impact</option>
-        <option value="Comic Sans MS, cursive">Comic Sans</option>
-        <option value="Courier New, monospace">Courier New</option>
-      </select>
-    </span>
-    <span><label for="fontSize">Size</label><input id="fontSize" type="range" min="6" max="22" value="11"></span>
     <span id="overlayControl"><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
     <button id="rainBtn">Rain: Off</button>
     <button id="pauseBtn">⏸ Pause</button>
@@ -253,172 +223,6 @@
       objects.forEach(o => scene.remove(o));
       objects.length = 0;
     }
-
-    // ── TERRAIN ──────────────────────────────────────────────────────────────
-    const TERRAIN = (() => {
-      const objects = [], grid = [], hues = [];
-      const sphereGeos = [
-        new THREE.SphereGeometry(0.5, 10, 10),
-        new THREE.SphereGeometry(1.0, 12, 12),
-        new THREE.SphereGeometry(1.5, 16, 16),
-        new THREE.SphereGeometry(2.0, 16, 16),
-      ];
-      const CX = 31.5, CZ = 31.5;
-      const MAX_DIST = Math.sqrt(CX * CX + CZ * CZ);
-
-      return {
-        init() {
-          renderer.setClearColor(0xfafafa);
-          camera.position.set(64, 48, 64);
-          camera.rotation.x = -Math.PI / 8;
-          camera.rotation.y =  Math.PI / 4;
-          camera.rotation.z = 0;
-
-          for (let i = 0; i < 64; i++) {
-            grid[i] = []; hues[i] = [];
-            for (let j = 0; j < 64; j++) {
-              const hue = Math.sqrt((i - CX) ** 2 + (j - CZ) ** 2) / MAX_DIST;
-              hues[i][j] = hue;
-              const mat  = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(hue, 0.9, 0.5) });
-              const geo  = sphereGeos[Math.floor(Math.random() * sphereGeos.length)];
-              const mesh = new THREE.Mesh(geo, mat);
-              mesh.position.set(-32 + i, 1.5 * noise.simplex3(i, j, 0), -32 + j);
-              grid[i][j] = mesh;
-              objects.push(mesh);
-              scene.add(mesh);
-            }
-          }
-        },
-        update(f) {
-          const amp        = +document.getElementById('amplitude').value;
-          const smoothness = +document.getElementById('smoothness').value;
-          const vel        = Math.pow(2, 11 - +document.getElementById('velocity').value);
-          for (let i = 0; i < 64; i++) {
-            for (let j = 0; j < 64; j++) {
-              const mesh = grid[i][j];
-              const y = 5 + amp * noise.simplex3(i / smoothness, j / smoothness, f / vel);
-              mesh.position.y = y;
-              const normY = amp > 0 ? Math.max(0, Math.min(1, (y - 5) / amp * 0.5 + 0.5)) : 0.5;
-              mesh.material.color.setHSL(hues[i][j], 0.9, 0.15 + 0.75 * normY);
-            }
-          }
-        },
-        dispose() { clearScene(objects); grid.length = 0; hues.length = 0; },
-      };
-    })();
-
-    // ── CITY ─────────────────────────────────────────────────────────────────
-    const CITY = (() => {
-      const objects = [], winMeshes = [];
-      const GRID = 7, BLOCK = 8, GAP = 4, STEP = 12;
-      const HALF = ((GRID - 1) * STEP) / 2;
-
-      return {
-        init() {
-          renderer.setClearColor(0x07070e);
-          camera.position.set(78, 60, 78);
-          camera.lookAt(0, 10, 0);
-
-          // Ground
-          const gnd = new THREE.Mesh(
-            new THREE.PlaneGeometry(400, 400),
-            new THREE.MeshBasicMaterial({ color: 0x0c0c15 })
-          );
-          gnd.rotation.x = -Math.PI / 2;
-          gnd.position.y = -0.1;
-          objects.push(gnd); scene.add(gnd);
-
-          // Street grid
-          const streetMat = new THREE.MeshBasicMaterial({ color: 0x14141e });
-          for (let i = 0; i <= GRID; i++) {
-            const p = -HALF - STEP / 2 + i * STEP;
-            const sh = new THREE.Mesh(new THREE.PlaneGeometry(GRID * STEP + GAP, GAP), streetMat);
-            sh.rotation.x = -Math.PI / 2; sh.position.set(0, -0.05, p);
-            objects.push(sh); scene.add(sh);
-            const sv = new THREE.Mesh(new THREE.PlaneGeometry(GAP, GRID * STEP + GAP), streetMat);
-            sv.rotation.x = -Math.PI / 2; sv.position.set(p, -0.05, 0);
-            objects.push(sv); scene.add(sv);
-          }
-
-          // Buildings
-          for (let gi = 0; gi < GRID; gi++) {
-            for (let gj = 0; gj < GRID; gj++) {
-              if (Math.random() < 0.1) continue;
-              const cx = -HALF + gi * STEP, cz = -HALF + gj * STEP;
-
-              const slots = Math.random() < 0.35
-                ? [{ ox: -BLOCK * 0.23, ow: BLOCK * 0.44 }, { ox: BLOCK * 0.23, ow: BLOCK * 0.44 }]
-                : [{ ox: 0, ow: BLOCK * 0.82 }];
-
-              slots.forEach(({ ox, ow }) => {
-                const bw = ow * (0.72 + Math.random() * 0.28);
-                const bd = ow * (0.72 + Math.random() * 0.28);
-                const bh = 4 + Math.random() * 26;
-                const bx = cx + ox;
-
-                const shade = 0.07 + Math.random() * 0.1;
-                const bMesh = new THREE.Mesh(
-                  new THREE.BoxGeometry(bw, bh, bd),
-                  new THREE.MeshBasicMaterial({ color: new THREE.Color(shade, shade, shade + 0.025) })
-                );
-                bMesh.position.set(bx, bh / 2, cz);
-                objects.push(bMesh); scene.add(bMesh);
-
-                // Windows on each face
-                const floors   = Math.max(2, Math.floor(bh / 2.6));
-                const wCols    = Math.max(1, Math.floor(Math.min(bw, bd) / 1.6));
-                const floorH   = bh / floors;
-
-                for (let fl = 0; fl < floors; fl++) {
-                  const wy = fl * floorH + 0.7;
-                  for (let w = 0; w < wCols; w++) {
-                    // +X / -X faces
-                    const wz = cz - bd/2 + bd / wCols * (w + 0.5);
-                    [[bx + bw/2 + 0.04, 'x'], [bx - bw/2 - 0.04, 'x']].forEach(([wx]) => {
-                      const lit = Math.random() > 0.28;
-                      const wm = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.06, 0.52, 0.62),
-                        new THREE.MeshBasicMaterial({ color: lit ? 0xf0dc60 : 0x090912 })
-                      );
-                      wm.position.set(wx, wy, wz);
-                      winMeshes.push({ mesh: wm, lit });
-                      objects.push(wm); scene.add(wm);
-                    });
-                    // +Z / -Z faces
-                    const wx2 = bx - bw/2 + bw / wCols * (w + 0.5);
-                    [[cz + bd/2 + 0.04], [cz - bd/2 - 0.04]].forEach(([wz2]) => {
-                      const lit = Math.random() > 0.28;
-                      const wm = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.62, 0.52, 0.06),
-                        new THREE.MeshBasicMaterial({ color: lit ? 0xf0dc60 : 0x090912 })
-                      );
-                      wm.position.set(wx2, wy, wz2);
-                      winMeshes.push({ mesh: wm, lit });
-                      objects.push(wm); scene.add(wm);
-                    });
-                  }
-                }
-              });
-            }
-          }
-        },
-
-        update(f) {
-          const a = f * 0.0018;
-          camera.position.set(Math.cos(a) * 88, 52 + Math.sin(a * 0.4) * 10, Math.sin(a) * 88);
-          camera.lookAt(0, 10, 0);
-
-          // Window flicker
-          if (f % 5 === 0 && winMeshes.length) {
-            const w = winMeshes[Math.floor(Math.random() * winMeshes.length)];
-            w.lit = !w.lit;
-            w.mesh.material.color.setHex(w.lit ? 0xf0dc60 : 0x090912);
-          }
-        },
-
-        dispose() { clearScene(objects); winMeshes.length = 0; },
-      };
-    })();
 
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
@@ -873,75 +677,10 @@
       };
     })();
 
-    // ── NATURE VIDEO ─────────────────────────────────────────────────────────
-    const NATURE_VIDEO = (() => {
-      const objects = [];
-      let videoEl = null;
-
-      function buildPlane(src) {
-        if (videoEl) { videoEl.pause(); videoEl.src = ''; videoEl.load(); }
-        clearScene(objects);
-
-        renderer.setClearColor(0x000000);
-        camera.position.set(0, 0, 5);
-        camera.rotation.set(0, 0, 0);
-
-        videoEl = document.createElement('video');
-        videoEl.src = src;
-        videoEl.loop = true;
-        videoEl.muted = true;
-        videoEl.playsInline = true;
-        videoEl.autoplay = true;
-        videoEl.play().catch(() => {});
-
-        const tex = new THREE.VideoTexture(videoEl);
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-
-        const aspect = window.innerWidth / window.innerHeight;
-        const h = 2 * 5 * Math.tan(THREE.MathUtils.degToRad(22.5));
-        const plane = new THREE.Mesh(
-          new THREE.PlaneGeometry(h * aspect, h),
-          new THREE.MeshBasicMaterial({ map: tex })
-        );
-        objects.push(plane);
-        scene.add(plane);
-      }
-
-      return {
-        init() {
-          const src = document.getElementById('videoPicker').value;
-          buildPlane(src);
-        },
-        update() {},
-        dispose() {
-          clearScene(objects);
-          if (videoEl) { videoEl.pause(); videoEl.src = ''; videoEl.load(); videoEl = null; }
-        },
-      };
-    })();
-
-    const ANIM_MAP = { terrain: TERRAIN, city: CITY, fish: FISH, nature: NATURE_VIDEO };
-    let currentAnim = FISH;
     FISH.init();
-
-    document.getElementById('animPicker').addEventListener('change', e => {
-      currentAnim.dispose();
-      currentAnim = ANIM_MAP[e.target.value];
-      currentAnim.init();
-      document.getElementById('terrainControls').style.display =
-        e.target.value === 'terrain' ? 'contents' : 'none';
-      document.getElementById('videoControls').style.display =
-        e.target.value === 'nature' ? '' : 'none';
-    });
-
-    document.getElementById('videoPicker').addEventListener('change', () => {
-      if (currentAnim === NATURE_VIDEO) { currentAnim.dispose(); currentAnim.init(); }
-    });
 
     const rainBtn = document.getElementById('rainBtn');
     rainBtn.addEventListener('click', () => {
-      if (currentAnim !== FISH) return;
       const on = FISH.toggleRain();
       rainBtn.textContent = on ? 'Rain: On' : 'Rain: Off';
       rainBtn.style.background = on ? '#e8f4f8' : '';
@@ -1064,12 +803,6 @@
       sg.drawArrays(sg.TRIANGLE_STRIP, 0, 4);
     }
 
-    // ── Font picker ──────────────────────────────────────────────────────────
-    document.getElementById('fontPicker').addEventListener('change', e => {
-      stage.style.fontFamily = e.target.value;
-      fitStage();
-    });
-
     // ── Font size slider ─────────────────────────────────────────────────────
     document.getElementById('fontSize').addEventListener('input', e => {
       fontSize = +e.target.value;
@@ -1116,6 +849,11 @@
       btn.addEventListener('click', () => setMode(mode))
     );
 
+    // ── Effect picker ────────────────────────────────────────────────────────
+    document.getElementById('effectPicker').addEventListener('change', e => {
+      shaderCanvas.style.display = e.target.value === 'rgb' ? '' : 'none';
+    });
+
     function tickSplitMode() {
       if (splitMode === 'proximity') {
         const pct = (_mouseX / window.innerWidth) * 100;
@@ -1144,11 +882,12 @@
       if (!running) return;
       requestAnimationFrame(loop);
       frameNum++;
-      currentAnim.update(frameNum);
+      FISH.update(frameNum);
       tickSplitMode();
       renderer.render(scene, camera);
-      renderRGBShader(glCanvas, frameNum * 0.016);
-      pt.framePre(glCanvas, stage);
+      const useRGB = document.getElementById('effectPicker').value === 'rgb';
+      if (useRGB) renderRGBShader(glCanvas, frameNum * 0.016);
+      pt.framePre(useRGB ? glCanvas : renderer.domElement, stage);
     }
     loop();
   })();
