@@ -16,6 +16,7 @@
       display: block;
       position: fixed;
       top: 0; left: 0;
+      z-index: 3;
       font-size: 11px;
       line-height: 1.15;
       letter-spacing: 0.05em;
@@ -28,6 +29,7 @@
       position: fixed;
       bottom: 1.4rem;
       left: 50%;
+      z-index: 3;
       transform: translateX(-50%);
       display: flex;
       gap: 1.2rem;
@@ -73,12 +75,33 @@
     }
     #pauseBtn:hover { background: #f0f0f0; }
 
-    #glcanvas { display: none; }
+    #glcanvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      object-fit: fill;
+    }
+
+    /* pre sits on top of the canvas; background must be transparent */
+    #stage { background: transparent; }
+
+    #divider {
+      position: fixed;
+      top: 0;
+      left: 100%;
+      width: 100vw;
+      height: 100vh;
+      background: white;
+      pointer-events: none;
+      z-index: 2;
+      transform: translateX(-100%);
+    }
   </style>
 </head>
 <body>
   <pre id="stage"></pre>
   <canvas id="glcanvas"></canvas>
+  <div id="divider"></div>
 
   <div id="controls">
     <span><label for="smoothness">Smooth</label><input id="smoothness" type="range" min="10" max="100" value="40"></span>
@@ -100,6 +123,7 @@
       </select>
     </span>
     <span><label for="fontSize">Size</label><input id="fontSize" type="range" min="6" max="22" value="11"></span>
+    <span><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
 
@@ -120,30 +144,35 @@
 
     // ── Sizing ──────────────────────────────────────────────────────────────
     let fontSize = 11;
+    let cols, rows;
 
     function charGrid() {
       // Courier New: width ≈ 0.6×, height ≈ 1.15× font-size
       return {
-        cols: Math.floor(window.innerWidth        / (fontSize * 0.6)),
-        rows: Math.floor((window.innerHeight - 60) / (fontSize * 1.15)),
+        cols: Math.floor(window.innerWidth  / (fontSize * 0.6)),
+        rows: Math.floor(window.innerHeight / (fontSize * 1.15)),
       };
     }
 
     const stage = document.getElementById('stage');
 
-    // ── Three.js offscreen scene ─────────────────────────────────────────────
-    const GL_W = 900, GL_H = 500;
+    // Stretch letter-spacing and line-height so chars exactly fill the viewport
+    function fitStage() {
+      const charCssW = window.innerWidth  / cols;
+      const charCssH = window.innerHeight / rows;
+      stage.style.letterSpacing = (charCssW - fontSize * 0.6) + 'px';
+      stage.style.lineHeight    = charCssH + 'px';
+    }
 
+    // ── Three.js offscreen scene ─────────────────────────────────────────────
     const glCanvas = document.getElementById('glcanvas');
-    glCanvas.width  = GL_W;
-    glCanvas.height = GL_H;
 
     const scene    = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false });
-    renderer.setSize(GL_W, GL_H);
-    renderer.setClearColor(0x000000);  // black bg → background pixels dark → map to space
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0xffffff);  // white bg matches page background
 
-    const camera = new THREE.PerspectiveCamera(45, GL_W / GL_H, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.rotation.order = 'YXZ';
     camera.position.set(64, 48, 64);
     camera.rotation.x = -Math.PI / 8;
@@ -188,7 +217,7 @@
     }
 
     // ── Pretext ──────────────────────────────────────────────────────────────
-    let { cols, rows } = charGrid();
+    ({ cols, rows } = charGrid());
     const pt = new Pretext({
       cols, rows,
       chars: Pretext.CHARS_WILD,
@@ -198,26 +227,41 @@
       edgeThreshold: 0.28,
       edgeColor: '#000',
     });
+    fitStage();
 
     window.addEventListener('resize', () => {
-      const g = charGrid();
-      pt.resize(g.cols, g.rows);
+      ({ cols, rows } = charGrid());
+      pt.resize(cols, rows);
+      fitStage();
     });
 
     // ── Font picker ──────────────────────────────────────────────────────────
     document.getElementById('fontPicker').addEventListener('change', (e) => {
       stage.style.fontFamily = e.target.value;
+      fitStage();
     });
 
     // ── Font size slider ─────────────────────────────────────────────────────
     document.getElementById('fontSize').addEventListener('input', (e) => {
       fontSize = +e.target.value;
       stage.style.fontSize = fontSize + 'px';
-      const g = charGrid();
-      pt.resize(g.cols, g.rows);
+      ({ cols, rows } = charGrid());
+      pt.resize(cols, rows);
       pt._preEl = null; // force span reallocation at new grid size
+      fitStage();
     });
 
+
+    // ── Overlay split slider (left = WebGL, right = ASCII) ──────────────────
+    const divider = document.getElementById('divider');
+    function setOverlay(pct) {
+      stage.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      divider.style.left = pct + '%';
+    }
+    setOverlay(100);
+    document.getElementById('overlay').addEventListener('input', (e) => {
+      setOverlay(+e.target.value);
+    });
 
     // ── Pause ────────────────────────────────────────────────────────────────
     let running = true;
