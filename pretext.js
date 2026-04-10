@@ -53,6 +53,10 @@ class Pretext {
     // Full-resolution canvas for Sobel (sized lazily on first use)
     this._sobelCanvas = document.createElement('canvas');
     this._sobelCtx    = this._sobelCanvas.getContext('2d', { willReadFrequently: true });
+
+    // Per-cell cache for dirty-checking in framePre
+    this._prevChar  = null;
+    this._prevColor = null;
   }
 
   // ── Public render methods ──────────────────────────────────────────────────
@@ -117,11 +121,14 @@ class Pretext {
   /** Render into a <pre> target — monospace fonts align best. */
   framePre(sourceCanvas, targetEl) {
     const { cols, rows, chars, satBoost, lumBoost, edgeThreshold, edgeColor } = this;
+    const total = cols * rows;
 
     // Allocate / reallocate span grid when needed
-    if (this._preEl !== targetEl || this._spans?.length !== cols * rows) {
+    if (this._preEl !== targetEl || this._spans?.length !== total) {
       this._preEl = targetEl;
-      this._spans = new Array(cols * rows);
+      this._spans = new Array(total);
+      this._prevChar  = new Array(total).fill('');
+      this._prevColor = new Array(total).fill('');
       targetEl.textContent = '';
       for (let y = 0; y < rows; y++) {
         if (y > 0) targetEl.appendChild(document.createTextNode('\n'));
@@ -142,6 +149,9 @@ class Pretext {
       ? this._buildEdgeGrid(sourceCanvas)
       : null;
 
+    const prevChar  = this._prevChar;
+    const prevColor = this._prevColor;
+
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const n = y * cols + x;
@@ -149,20 +159,28 @@ class Pretext {
         let r = px[i], g = px[i + 1], b = px[i + 2];
         if (satBoost !== 1.0) [r, g, b] = Pretext._saturate(r, g, b, satBoost);
 
-        const span = this._spans[n];
+        let ch, color;
 
         if (edgeGrid) {
           const ec = this._edgeCharFromGrid(edgeGrid, n, edgeThreshold);
           if (ec) {
-            span.style.color = edgeColor || `rgb(${r},${g},${b})`;
-            span.textContent  = ec;
-            continue;
+            ch    = ec;
+            color = edgeColor || `rgb(${r},${g},${b})`;
           }
         }
 
-        const ch = chars[Math.round(lums[n] * (chars.length - 1))];
-        span.style.color = `rgb(${r},${g},${b})`;
-        span.textContent  = ch === ' ' ? '\u00a0' : ch;
+        if (!ch) {
+          ch    = chars[Math.round(lums[n] * (chars.length - 1))];
+          color = `rgb(${r},${g},${b})`;
+        }
+
+        if (ch !== prevChar[n] || color !== prevColor[n]) {
+          const span = this._spans[n];
+          span.style.color = color;
+          span.textContent  = ch === ' ' ? '\u00a0' : ch;
+          prevChar[n]  = ch;
+          prevColor[n] = color;
+        }
       }
     }
   }
@@ -296,5 +314,7 @@ class Pretext {
     this.rows = rows;
     this._sampleCanvas.width  = cols;
     this._sampleCanvas.height = rows;
+    this._prevChar  = null;
+    this._prevColor = null;
   }
 }

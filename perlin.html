@@ -122,6 +122,14 @@
     /* pre sits on top of the canvas; background must be transparent */
     #stage { background: transparent; }
 
+    #asciicanvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 3;
+      display: none;
+    }
+
     #shadercanvas {
       position: fixed;
       top: 0; left: 0;
@@ -146,6 +154,7 @@
 </head>
 <body>
   <pre id="stage"></pre>
+  <canvas id="asciicanvas"></canvas>
   <canvas id="glcanvas"></canvas>
   <canvas id="shadercanvas"></canvas>
   <div id="divider"></div>
@@ -688,12 +697,29 @@
 
     // ── Pretext ──────────────────────────────────────────────────────────────
     ({ cols, rows } = charGrid());
+    const asciiCanvas = document.getElementById('asciicanvas');
+    asciiCanvas.width  = window.innerWidth;
+    asciiCanvas.height = window.innerHeight;
+
+    const CANVAS_THRESHOLD = 10000; // cells above this → canvas path
+    let useCanvasMode = cols * rows > CANVAS_THRESHOLD;
+
+    function applyMode() {
+      useCanvasMode = cols * rows > CANVAS_THRESHOLD;
+      stage.style.display       = useCanvasMode ? 'none' : '';
+      asciiCanvas.style.display = useCanvasMode ? 'block' : 'none';
+    }
+    applyMode();
+
     const pt = new Pretext({
       cols, rows,
       chars: Pretext.CHARS_WILD,
       color: true,
       satBoost: 2.8,
       lumBoost: 1.4,
+      font: `${fontSize}px Consolas, monospace`,
+      fontSize,
+      bg: '#071c1a',
     });
     fitStage();
 
@@ -703,8 +729,11 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
+      asciiCanvas.width  = window.innerWidth;
+      asciiCanvas.height = window.innerHeight;
       fitStage();
       resizeShaderCanvas();
+      applyMode();
     });
 
     // ── RGB channel-shift shader (right side) ────────────────────────────────
@@ -807,10 +836,15 @@
     document.getElementById('fontSize').addEventListener('input', e => {
       fontSize = +e.target.value;
       stage.style.fontSize = fontSize + 'px';
+      pt.font     = `${fontSize}px Consolas, monospace`;
+      pt.fontSize = fontSize;
       ({ cols, rows } = charGrid());
       pt.resize(cols, rows);
       pt._preEl = null;
+      asciiCanvas.width  = window.innerWidth;
+      asciiCanvas.height = window.innerHeight;
       fitStage();
+      applyMode();
     });
 
     // ── Overlay split ────────────────────────────────────────────────────────
@@ -887,7 +921,12 @@
       renderer.render(scene, camera);
       const useRGB = document.getElementById('effectPicker').value === 'rgb';
       if (useRGB) renderRGBShader(glCanvas, frameNum * 0.016);
-      pt.framePre(useRGB ? glCanvas : renderer.domElement, stage);
+      const src = useRGB ? glCanvas : renderer.domElement;
+      if (useCanvasMode) {
+        pt.frame(src, asciiCanvas);
+      } else {
+        pt.framePre(src, stage);
+      }
     }
     loop();
   })();
