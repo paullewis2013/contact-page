@@ -288,6 +288,7 @@
 
   <canvas id="glcanvas"></canvas>
   <div id="controls">
+    <span id="cycleBar" style="font-family:Consolas,monospace;font-size:11px;letter-spacing:0.12em;color:#888;user-select:none"></span>
     <button id="phosphorBtn">Phosphor: Off</button>
     <button id="glitchBtn">Glitch: Off</button>
     <button id="gustBtn">Gust</button>
@@ -822,6 +823,16 @@
           }
         },
 
+        getActiveRipples() {
+          return ripples
+            .filter(r => r.active && r.life > 0)
+            .map(r => ({
+              x: r.mesh.position.x, z: r.mesh.position.z,
+              scale: r.mesh.scale.x,
+              life: r.life, maxLife: r.maxLife,
+            }));
+        },
+
         dispose() {
           rainActive = false; sandMesh = null;
           clearScene(objects);
@@ -930,6 +941,154 @@
 
 
 
+    // ── Day / night cycle ────────────────────────────────────────────────────
+    const DAY_CYCLE_FRAMES = 18000; // ~5 min at 60fps
+    const _dayBg    = new THREE.Color(0x071c1a);
+    const _nightBg  = new THREE.Color(0x010806);
+    const _bgScratch = new THREE.Color();
+    let cycleOffset = 0;
+
+    function getDayness() {
+      if (frameNum <= INTRO_FRAMES) return 1;
+      const elapsed = (frameNum - INTRO_FRAMES + cycleOffset) % DAY_CYCLE_FRAMES;
+      return (1 + Math.cos((elapsed / DAY_CYCLE_FRAMES) * Math.PI * 2)) / 2;
+    }
+
+    function applyDayNight(dayness) {
+      if (frameNum <= INTRO_FRAMES) return;
+      pt.lumBoost = 0.28 + dayness * (LUM_END - 0.28);
+      pt.satBoost = 0.5  + dayness * (2.8 - 0.5);
+      _bgScratch.copy(_nightBg).lerp(_dayBg, dayness);
+      pt.bg = `#${_bgScratch.getHexString()}`;
+      renderer.setClearColor(_bgScratch);
+    }
+
+    // ── Fireflies ─────────────────────────────────────────────────────────────
+    const fireflies  = [];
+    const MAX_FLIES  = 14;
+
+    function updateFireflies(dayness, canvas) {
+      const darkness = Math.max(0, 1 - dayness);
+      const target   = darkness > 0.25
+        ? Math.round(((darkness - 0.25) / 0.75) * MAX_FLIES) : 0;
+
+      while (fireflies.length < target) {
+        fireflies.push({
+          col:      Math.random() * pt.cols,
+          row:      pt.rows * 0.15 + Math.random() * pt.rows * 0.55,
+          vCol:     (Math.random() - 0.5) * 0.018,
+          vRow:     (Math.random() - 0.5) * 0.009,
+          phase:    Math.random() * Math.PI * 2,
+          blinkSpd: 0.035 + Math.random() * 0.04,
+          life: 0,  maxLife: 220 + Math.random() * 280,
+        });
+      }
+      if (fireflies.length > target) fireflies.length = target;
+
+      // Canvas mode setup
+      let ctx = null, cellW, cellH;
+      if (canvas) {
+        ctx   = canvas.getContext('2d');
+        cellW = canvas.width  / pt.cols;
+        cellH = canvas.height / pt.rows;
+        ctx.font         = pt.font;
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+      }
+
+      for (let i = fireflies.length - 1; i >= 0; i--) {
+        const f = fireflies[i];
+        f.life++;
+        f.col += f.vCol;
+        f.row += f.vRow;
+        if (f.col <  0)        f.col += pt.cols;
+        if (f.col >= pt.cols)  f.col -= pt.cols;
+        f.row = Math.max(1, Math.min(pt.rows - 2, f.row));
+        if (f.life >= f.maxLife) { fireflies.splice(i, 1); continue; }
+
+        const lifeA  = Math.sin((f.life / f.maxLife) * Math.PI);
+        const blink  = Math.pow((Math.sin(frameNum * f.blinkSpd + f.phase) + 1) / 2, 2);
+        const bright = lifeA * blink * darkness;
+        if (bright < 0.06) continue;
+
+        const col = Math.floor(f.col);
+        const row = Math.floor(f.row);
+        const r   = Math.round(bright * 180);
+        const g   = Math.round(bright * 255);
+        const b   = Math.round(bright * 80);
+        const ch  = bright > 0.55 ? '*' : '·';
+
+        if (ctx) {
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          ctx.fillText(ch, (col + 0.5) * cellW, (row + 0.5) * cellH);
+        } else if (pt._spans) {
+          const span = pt._spans[row * pt.cols + col];
+          if (!span) continue;
+          span.textContent = ch;
+          span.style.color = `rgb(${r},${g},${b})`;
+        }
+      }
+    }
+
+    // ── Ripple char distortion ────────────────────────────────────────────────
+    const _rvec      = new THREE.Vector3();
+    const WAVE_CHARS = ['~', '-', '~', '=', '-', '~'];
+
+    function stampRippleChars(activeRipples) {
+      if (!pt._spans) return;
+      const cellW = window.innerWidth  / pt.cols;
+      const cellH = window.innerHeight / pt.rows;
+
+      for (const r of activeRipples) {
+        const progress = r.life / r.maxLife;
+        const alpha    = Math.sin(progress * Math.PI) * 0.75;
+        if (alpha < 0.08 || r.scale < 0.5) continue;
+
+        // Project centre
+        _rvec.set(r.x, 0, r.z).project(camera);
+        const cx = (_rvec.x + 1) / 2 * window.innerWidth  / cellW;
+        const cy = (1 - _rvec.y) / 2 * window.innerHeight / cellH;
+
+        // Project edge to get radius in cols
+        _rvec.set(r.x + r.scale, 0, r.z).project(camera);
+        const ex = (_rvec.x + 1) / 2 * window.innerWidth / cellW;
+        const rCol = Math.abs(ex - cx);
+        if (rCol < 1) continue;
+        const rRow = rCol * (cellW / cellH) * 0.5; // perspective squish
+
+        const steps = Math.round(rCol * Math.PI * 2 * 1.4);
+        const v  = Math.round(alpha * 90 + 25);
+        const color = `rgb(${v},${Math.round(v * 1.5)},${Math.round(v * 1.4)})`;
+
+        for (let s = 0; s < steps; s++) {
+          const angle = (s / steps) * Math.PI * 2;
+          const col   = Math.round(cx + Math.cos(angle) * rCol);
+          const row   = Math.round(cy + Math.sin(angle) * rRow);
+          if (col < 0 || col >= pt.cols || row < 0 || row >= pt.rows) continue;
+          const span = pt._spans[row * pt.cols + col];
+          if (!span) continue;
+          span.textContent = WAVE_CHARS[s % WAVE_CHARS.length];
+          span.style.color  = color;
+        }
+      }
+    }
+
+    // ── Cycle bar ─────────────────────────────────────────────────────────────
+    const cycleBarEl = document.getElementById('cycleBar');
+    const CYCLE_WIDTH = 10;
+    cycleBarEl.style.cursor = 'pointer';
+    cycleBarEl.title = 'Click to advance time';
+    cycleBarEl.addEventListener('click', () => {
+      cycleOffset = (cycleOffset + DAY_CYCLE_FRAMES / 8) % DAY_CYCLE_FRAMES;
+    });
+
+    function updateCycleBar(dayness) {
+      const pos = Math.round((1 - dayness) * (CYCLE_WIDTH - 1));
+      let bar = '';
+      for (let i = 0; i < CYCLE_WIDTH; i++) bar += i === pos ? '●' : '·';
+      cycleBarEl.textContent = `☀ ${bar} ☾`;
+    }
+
     // ── Pause ────────────────────────────────────────────────────────────────
     let running = true;
     const pauseBtn = document.getElementById('pauseBtn');
@@ -974,13 +1133,19 @@
         pt.chars = fullChars.slice(0, count);
       }
 
+      const dayness = getDayness();
+      applyDayNight(dayness);
+      if (frameNum % 6 === 0) updateCycleBar(dayness);
       FISH.update(frameNum);
       renderer.render(scene, camera);
       const src = renderer.domElement;
       if (useCanvasMode) {
         pt.frame(src, asciiCanvas);
+        updateFireflies(dayness, asciiCanvas);
       } else {
         pt.framePre(src, stage);
+        stampRippleChars(FISH.getActiveRipples());
+        updateFireflies(dayness, null);
       }
     }
 
