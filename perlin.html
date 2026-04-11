@@ -26,40 +26,6 @@
     }
 
     /* Top mode bar */
-    #modebar {
-      position: fixed;
-      top: 1.2rem;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 10;
-      display: flex;
-      gap: 0;
-      background: rgba(255,255,255,0.88);
-      border: 1px solid #ddd;
-      border-radius: 999px;
-      padding: 0.25rem 0.35rem;
-      font-family: system-ui, sans-serif;
-      font-size: 12px;
-      backdrop-filter: blur(6px);
-    }
-
-    #modebar button {
-      border: none;
-      background: none;
-      padding: 0.25rem 0.85rem;
-      border-radius: 999px;
-      cursor: pointer;
-      font-size: 12px;
-      color: #555;
-      font-weight: 600;
-      transition: background 0.15s, color 0.15s;
-      white-space: nowrap;
-    }
-    #modebar button.active {
-      background: #cb4b16;
-      color: #fff;
-    }
-    #modebar button:not(.active):hover { background: #f0f0f0; }
 
     /* Controls overlay */
     #controls {
@@ -124,15 +90,6 @@
     #stage { background: transparent; }
 
     @media (max-width: 600px) {
-      #modebar {
-        top: 0.7rem;
-        font-size: 11px;
-        padding: 0.2rem 0.3rem;
-      }
-      #modebar button {
-        padding: 0.2rem 0.6rem;
-        font-size: 11px;
-      }
       #controls {
         bottom: 0.7rem;
         gap: 0.6rem;
@@ -155,26 +112,7 @@
       display: none;
     }
 
-    #shadercanvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      z-index: 1;
-      pointer-events: none;
-    }
 
-    #divider {
-      position: fixed;
-      top: 0;
-      left: 100%;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(7, 28, 26, 0.78);
-      backdrop-filter: blur(5px) saturate(0.75);
-      pointer-events: none;
-      z-index: 2;
-      transform: translateX(-100%);
-    }
 
     @keyframes glow-breathe {
       0%, 100% { text-shadow: 0 0 6px rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
@@ -315,7 +253,7 @@
       z-index: 100;
       background: #071c1a;
       pointer-events: none;
-      transition: opacity 1.4s ease;
+      transition: opacity 0.8s ease;
     }
     #loader.fade-out { opacity: 0; }
   </style>
@@ -349,31 +287,11 @@
   </div>
 
   <canvas id="glcanvas"></canvas>
-  <canvas id="shadercanvas"></canvas>
-  <div id="divider"></div>
-
-  <div id="modebar">
-    <button id="modeOverlay" class="active">Overlay</button>
-    <button id="modeProximity">Proximity</button>
-    <button id="modeSweep">Autosweep</button>
-  </div>
-
   <div id="controls">
-<span><label for="fontSize">Size</label><input id="fontSize" type="range" min="6" max="22" value="11"></span>
-    <span>
-      <label for="effectPicker">Effect</label>
-      <select id="effectPicker">
-        <option value="none">None</option>
-        <option value="rgb" selected>RGB</option>
-      </select>
-    </span>
-    <span id="overlayControl"><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
     <button id="phosphorBtn">Phosphor: Off</button>
-    <button id="scanlinesBtn">Scanlines: Off</button>
     <button id="glitchBtn">Glitch: Off</button>
-    <button id="invertBtn">Invert: Off</button>
     <button id="gustBtn">Gust</button>
-    <button id="rainBtn">Rain: Off</button>
+    <button id="rainBtn">Rain: On</button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
 
@@ -393,7 +311,7 @@
     'use strict';
 
     // ── Sizing ───────────────────────────────────────────────────────────────
-    let fontSize = 11;
+    let fontSize = 10;
     let cols, rows;
 
     function charGrid() {
@@ -438,7 +356,7 @@
       const FISH_COUNT = 12;
       const RIPPLE_COUNT = 80;
       const RAIN_COUNT  = 90;
-      let rainActive = false;
+      let rainActive = true;
       const ringGeo   = new THREE.RingGeometry(1, 1.2, 38);
       const shadowGeo = new THREE.CircleGeometry(1, 20);
       const rainGeo   = new THREE.BoxGeometry(0.07, 3.2, 0.07);
@@ -916,6 +834,20 @@
 
     FISH.init();
 
+    // Cinematic intro — camera starts at water level and pulls up
+    const INTRO_FRAMES = 300; // ~5s at 60fps
+    const CAM_START = { x: 0, y: 3,  z: 36 };
+    const CAM_END   = { x: 0, y: 58, z: 22 };
+    const LUT_START = { x: 0, y: 0,  z: 8  }; // lookAt target at start
+    const LUT_END   = { x: 0, y: 0,  z: 0  };
+    const LUM_START = 0.15;
+    const LUM_END   = 1.4;
+    const isMobile = window.innerWidth < 600;
+    if (!isMobile) {
+      camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
+      camera.lookAt(LUT_START.x, LUT_START.y, LUT_START.z);
+    }
+
     // Contact drawer
     const drawer   = document.getElementById('contact-drawer');
     const backdrop = document.getElementById('contact-backdrop');
@@ -931,6 +863,7 @@
     gustBtn.addEventListener('click', () => FISH.spawnGust());
 
     const rainBtn = document.getElementById('rainBtn');
+    rainBtn.style.background = '#e8f4f8';
     rainBtn.addEventListener('click', () => {
       const on = FISH.toggleRain();
       rainBtn.textContent = on ? 'Rain: On' : 'Rain: Off';
@@ -945,13 +878,6 @@
       phosphorBtn.style.background = on ? '#fff8e8' : '';
     });
 
-    const scanlinesBtn = document.getElementById('scanlinesBtn');
-    scanlinesBtn.addEventListener('click', () => {
-      pt.scanlines = !pt.scanlines;
-      scanlinesBtn.textContent = pt.scanlines ? 'Scanlines: On' : 'Scanlines: Off';
-      scanlinesBtn.style.background = pt.scanlines ? '#f0f0f0' : '';
-    });
-
     const glitchBtn = document.getElementById('glitchBtn');
     glitchBtn.addEventListener('click', () => {
       pt.glitch = pt.glitch === 0 ? 0.008 : 0;
@@ -959,12 +885,6 @@
       glitchBtn.style.background = pt.glitch > 0 ? '#f0ffe8' : '';
     });
 
-    const invertBtn = document.getElementById('invertBtn');
-    invertBtn.addEventListener('click', () => {
-      pt.invert = !pt.invert;
-      invertBtn.textContent = pt.invert ? 'Invert: On' : 'Invert: Off';
-      invertBtn.style.background = pt.invert ? '#e8f0ff' : '';
-    });
 
     // ── Pretext ──────────────────────────────────────────────────────────────
     ({ cols, rows } = charGrid());
@@ -984,10 +904,10 @@
 
     const pt = new Pretext({
       cols, rows,
-      chars: Pretext.CHARS_WILD,
+      chars: ' .·',
       color: true,
-      satBoost: 2.8,
-      lumBoost: 1.4,
+      satBoost: 0,
+      lumBoost: LUM_START,
       font: `${fontSize}px Consolas, monospace`,
       fontSize,
       bg: '#071c1a',
@@ -1005,172 +925,9 @@
       asciiCanvas.width  = window.innerWidth;
       asciiCanvas.height = window.innerHeight;
       fitStage();
-      resizeShaderCanvas();
       applyMode();
     });
 
-    // ── RGB channel-shift shader (right side) ────────────────────────────────
-    const shaderCanvas = document.getElementById('shadercanvas');
-    const sg = shaderCanvas.getContext('webgl');
-
-    function _compileShader(gl, src, type) {
-      const s = gl.createShader(type);
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      return s;
-    }
-
-    const _rgbVert = `
-      attribute vec2 a_pos;
-      varying vec2 v_uv;
-      void main() {
-        v_uv = a_pos * 0.5 + 0.5;
-        gl_Position = vec4(a_pos, 0.0, 1.0);
-      }`;
-
-    const _rgbFrag = `
-      precision mediump float;
-      uniform sampler2D u_tex;
-      uniform vec2 u_res;
-      uniform float u_time;
-      uniform float u_mouse_x;
-      varying vec2 v_uv;
-      void main() {
-        float angle = u_time;
-        vec2 ro = vec2(cos(angle), sin(angle));
-        angle += radians(120.0);
-        vec2 go = vec2(cos(angle), sin(angle));
-        angle += radians(120.0);
-        vec2 bo = vec2(cos(angle), sin(angle));
-
-        float sz = 0.03 * length(gl_FragCoord.xy - 0.5 * u_res);
-        sz *= u_mouse_x / u_res.x;
-
-        float r = texture2D(u_tex, v_uv - sz * ro / u_res).r;
-        float g = texture2D(u_tex, v_uv - sz * go / u_res).g;
-        float b = texture2D(u_tex, v_uv - sz * bo / u_res).b;
-
-        gl_FragColor = vec4(r, g, b, 1.0);
-      }`;
-
-    const _rgbProg = sg.createProgram();
-    sg.attachShader(_rgbProg, _compileShader(sg, _rgbVert, sg.VERTEX_SHADER));
-    sg.attachShader(_rgbProg, _compileShader(sg, _rgbFrag, sg.FRAGMENT_SHADER));
-    sg.linkProgram(_rgbProg);
-    sg.useProgram(_rgbProg);
-
-    const _aPos    = sg.getAttribLocation(_rgbProg,  'a_pos');
-    const _uTex    = sg.getUniformLocation(_rgbProg, 'u_tex');
-    const _uRes    = sg.getUniformLocation(_rgbProg, 'u_res');
-    const _uTime   = sg.getUniformLocation(_rgbProg, 'u_time');
-    const _uMouseX = sg.getUniformLocation(_rgbProg, 'u_mouse_x');
-
-    const _quadBuf = sg.createBuffer();
-    sg.bindBuffer(sg.ARRAY_BUFFER, _quadBuf);
-    sg.bufferData(sg.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), sg.STATIC_DRAW);
-
-    const _rgbTex = sg.createTexture();
-    sg.bindTexture(sg.TEXTURE_2D, _rgbTex);
-    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_WRAP_S, sg.CLAMP_TO_EDGE);
-    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_WRAP_T, sg.CLAMP_TO_EDGE);
-    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_MIN_FILTER, sg.LINEAR);
-    sg.texParameteri(sg.TEXTURE_2D, sg.TEXTURE_MAG_FILTER, sg.LINEAR);
-
-    function resizeShaderCanvas() {
-      shaderCanvas.width  = window.innerWidth;
-      shaderCanvas.height = window.innerHeight;
-      sg.viewport(0, 0, shaderCanvas.width, shaderCanvas.height);
-    }
-    resizeShaderCanvas();
-
-    let _mouseX = window.innerWidth * 0.5;
-    window.addEventListener('mousemove', e => { _mouseX = e.clientX; });
-
-    function renderRGBShader(srcCanvas, time) {
-      sg.useProgram(_rgbProg);
-      sg.bindBuffer(sg.ARRAY_BUFFER, _quadBuf);
-      sg.enableVertexAttribArray(_aPos);
-      sg.vertexAttribPointer(_aPos, 2, sg.FLOAT, false, 0, 0);
-
-      sg.activeTexture(sg.TEXTURE0);
-      sg.bindTexture(sg.TEXTURE_2D, _rgbTex);
-      sg.pixelStorei(sg.UNPACK_FLIP_Y_WEBGL, true);
-      sg.texImage2D(sg.TEXTURE_2D, 0, sg.RGBA, sg.RGBA, sg.UNSIGNED_BYTE, srcCanvas);
-
-      sg.uniform1i(_uTex, 0);
-      sg.uniform2f(_uRes, shaderCanvas.width, shaderCanvas.height);
-      sg.uniform1f(_uTime, time);
-      sg.uniform1f(_uMouseX, _mouseX);
-
-      sg.drawArrays(sg.TRIANGLE_STRIP, 0, 4);
-    }
-
-    // ── Font size slider ─────────────────────────────────────────────────────
-    document.getElementById('fontSize').addEventListener('input', e => {
-      fontSize = +e.target.value;
-      stage.style.fontSize = fontSize + 'px';
-      pt.font     = `${fontSize}px Consolas, monospace`;
-      pt.fontSize = fontSize;
-      ({ cols, rows } = charGrid());
-      pt.resize(cols, rows);
-      pt._preEl = null;
-      asciiCanvas.width  = window.innerWidth;
-      asciiCanvas.height = window.innerHeight;
-      fitStage();
-      applyMode();
-    });
-
-    // ── Overlay split ────────────────────────────────────────────────────────
-    const divider = document.getElementById('divider');
-    function setOverlay(pct) {
-      stage.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
-      shaderCanvas.style.clipPath = `inset(0 0 0 ${pct}%)`;
-      divider.style.left = pct + '%';
-    }
-    setOverlay(100);
-    document.getElementById('overlay').addEventListener('input', e => {
-      if (splitMode === 'overlay') setOverlay(+e.target.value);
-    });
-
-    // ── Split mode ───────────────────────────────────────────────────────────
-    let splitMode = 'overlay';
-    let sweepTime = 0;
-
-    const modeButtons = {
-      overlay:   document.getElementById('modeOverlay'),
-      proximity: document.getElementById('modeProximity'),
-      sweep:     document.getElementById('modeSweep'),
-    };
-    const overlayControl = document.getElementById('overlayControl');
-
-    function setMode(mode) {
-      splitMode = mode;
-      Object.entries(modeButtons).forEach(([k, btn]) =>
-        btn.classList.toggle('active', k === mode)
-      );
-      overlayControl.style.display = mode === 'overlay' ? '' : 'none';
-      if (mode === 'overlay') setOverlay(+document.getElementById('overlay').value);
-    }
-
-    Object.entries(modeButtons).forEach(([mode, btn]) =>
-      btn.addEventListener('click', () => setMode(mode))
-    );
-
-    // ── Effect picker ────────────────────────────────────────────────────────
-    document.getElementById('effectPicker').addEventListener('change', e => {
-      shaderCanvas.style.display = e.target.value === 'rgb' ? '' : 'none';
-    });
-
-    function tickSplitMode() {
-      if (splitMode === 'proximity') {
-        const pct = (_mouseX / window.innerWidth) * 100;
-        setOverlay(pct);
-      } else if (splitMode === 'sweep') {
-        sweepTime += 0.008;
-        const pct = 50 + Math.sin(sweepTime) * 48;
-        setOverlay(pct);
-      }
-    }
 
 
     // ── Pause ────────────────────────────────────────────────────────────────
@@ -1194,12 +951,32 @@
         loader.classList.add('fade-out');
         loader.addEventListener('transitionend', () => loader.remove(), { once: true });
       }
+      // Intro camera pull-up + lum reveal
+      if (frameNum <= INTRO_FRAMES) {
+        const t  = frameNum / INTRO_FRAMES;
+        const e  = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        if (!isMobile) {
+          camera.position.set(
+            CAM_START.x + (CAM_END.x - CAM_START.x) * e,
+            CAM_START.y + (CAM_END.y - CAM_START.y) * e,
+            CAM_START.z + (CAM_END.z - CAM_START.z) * e,
+          );
+          camera.lookAt(
+            LUT_START.x + (LUT_END.x - LUT_START.x) * e,
+            LUT_START.y + (LUT_END.y - LUT_START.y) * e,
+            LUT_START.z + (LUT_END.z - LUT_START.z) * e,
+          );
+        }
+        pt.lumBoost = LUM_START + (LUM_END - LUM_START) * e;
+        pt.satBoost = 2.8 * e;
+        const fullChars = Array.from(Pretext.CHARS_WILD);
+        const count = Math.max(3, Math.round(e * fullChars.length));
+        pt.chars = fullChars.slice(0, count);
+      }
+
       FISH.update(frameNum);
-      tickSplitMode();
       renderer.render(scene, camera);
-      const useRGB = document.getElementById('effectPicker').value === 'rgb';
-      if (useRGB) renderRGBShader(glCanvas, frameNum * 0.016);
-      const src = useRGB ? glCanvas : renderer.domElement;
+      const src = renderer.domElement;
       if (useCanvasMode) {
         pt.frame(src, asciiCanvas);
       } else {
