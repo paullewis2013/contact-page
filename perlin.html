@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>Perlin Noise Playground — ASCII</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,6 +12,8 @@
       background: #fafafa;
       overflow: hidden;
       margin: 0;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     #stage {
@@ -84,24 +87,40 @@
       top: 0; left: 0;
       width: 100vw; height: 100vh;
       object-fit: fill;
+      /* render target only — never directly visible */
+      opacity: 0;
+      pointer-events: none;
     }
 
-    /* pre sits on top of the canvas; background must be transparent */
-    #stage { background: transparent; }
+    #stage {
+      width: 100vw;
+      height: 100vh;
+      background: #071c1a; /* overwritten each frame by applyDayNight */
+    }
+
+    #controls button {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
 
     @media (max-width: 600px) {
       #controls {
         bottom: 0.7rem;
-        gap: 0.6rem;
-        padding: 0.5rem 0.9rem;
+        gap: 0.55rem;
+        padding: 0.45rem 0.85rem;
         flex-wrap: wrap;
         justify-content: center;
         border-radius: 18px;
-        max-width: calc(100vw - 2rem);
+        max-width: calc(100vw - 1.6rem);
         white-space: normal;
       }
-      #controls input[type=range] { width: 60px; }
-      #title { font-size: 7px; top: 42%; transform: translate(-50%, -55%); }
+      #controls button { min-height: 32px; padding: 0.2rem 0.65rem; }
+      #phosphorBtn { display: none; }
+      #title {
+        font-size: clamp(5px, 1.8vw, 8px);
+        top: 42%;
+        transform: translate(-50%, -55%);
+      }
     }
 
     #asciicanvas {
@@ -160,12 +179,12 @@
       transform: translateX(-50%) translateY(100%);
       z-index: 20;
       width: min(420px, calc(100vw - 2rem));
-      background: rgba(7, 24, 22, 0.82);
-      backdrop-filter: blur(18px) saturate(1.2);
-      border: 1px solid rgba(255,255,255,0.12);
+      background: #071c1a;
+      border: 1px solid rgba(232,144,58,0.28);
+      border-top: 2px solid #e8903a;
       border-bottom: none;
-      border-radius: 18px 18px 0 0;
-      padding: 2rem 2rem 2.4rem;
+      border-radius: 0;
+      padding: 1.6rem 2rem 2.4rem;
       font-family: Consolas, monospace;
       color: rgba(255,255,255,0.88);
       transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
@@ -174,12 +193,22 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    #contact-drawer .drawer-handle {
-      width: 36px;
-      height: 3px;
-      background: rgba(255,255,255,0.25);
-      border-radius: 2px;
-      margin: 0 auto 1.6rem;
+    #contact-drawer .drawer-top {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.6rem;
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #e8903a;
+    }
+    #contact-drawer .drawer-top::before,
+    #contact-drawer .drawer-top::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(232,144,58,0.3);
     }
 
     #contact-drawer h2 {
@@ -191,11 +220,17 @@
     }
 
     #contact-drawer .role {
-      font-size: 11px;
-      color: rgba(255,255,255,0.45);
-      letter-spacing: 0.08em;
+      font-size: 10px;
+      color: #2db87a;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      margin-bottom: 1.8rem;
+      margin-bottom: 0;
+    }
+
+    #contact-drawer .drawer-rule {
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+      margin: 1.4rem 0;
     }
 
     #contact-drawer .links {
@@ -209,42 +244,50 @@
       align-items: center;
       gap: 0.75rem;
       font-size: 12px;
-      color: rgba(255,255,255,0.7);
+      color: rgba(255,255,255,0.65);
       text-decoration: none;
       letter-spacing: 0.03em;
       transition: color 0.15s;
     }
-    #contact-drawer .links a:hover { color: rgba(255,255,255,1); }
+    #contact-drawer .links a:hover { color: #e8903a; }
 
     #contact-drawer .links .icon {
       width: 28px;
       height: 28px;
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 7px;
+      border: 1px solid rgba(232,144,58,0.3);
+      border-radius: 3px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
+      font-size: 12px;
       flex-shrink: 0;
-      background: rgba(255,255,255,0.05);
+      background: rgba(232,144,58,0.05);
+      color: #e8903a;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    #contact-drawer .links a:hover .icon {
+      border-color: rgba(232,144,58,0.65);
+      background: rgba(232,144,58,0.1);
     }
 
     #contact-drawer .close-btn {
       position: absolute;
-      top: 1.1rem;
+      top: 1rem;
       right: 1.2rem;
       background: none;
       border: none;
-      color: rgba(255,255,255,0.35);
-      font-size: 18px;
+      color: rgba(232,144,58,0.4);
+      font-size: 14px;
+      font-family: Consolas, monospace;
       cursor: pointer;
       line-height: 1;
       padding: 0.2rem 0.4rem;
+      letter-spacing: 0;
     }
-    #contact-drawer .close-btn:hover { color: rgba(255,255,255,0.8); }
+    #contact-drawer .close-btn:hover { color: #e8903a; }
 
     @media (max-width: 600px) {
-      #contact-drawer { width: 100vw; border-radius: 14px 14px 0 0; }
+      #contact-drawer { width: 100vw; border-radius: 0; }
     }
 
     #loader {
@@ -256,9 +299,163 @@
       transition: opacity 0.8s ease;
     }
     #loader.fade-out { opacity: 0; }
+
+    /* ── Mobile fallback ─────────────────────────────────────────────────── */
+    #mobile-page {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #071c1a;
+      color: rgba(255,255,255,0.88);
+      font-family: Consolas, monospace;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem 2rem 3rem;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* scrolling wave strip */
+    .m-wave-wrap {
+      width: 100%;
+      overflow: hidden;
+      margin-bottom: 2.8rem;
+      opacity: 0.35;
+    }
+    .m-wave {
+      white-space: nowrap;
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      color: #2db87a;
+      animation: wave-scroll 18s linear infinite;
+    }
+    @keyframes wave-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    .m-fish {
+      font-size: 22px;
+      letter-spacing: 0.12em;
+      color: #e8903a;
+      margin-bottom: 2rem;
+      text-shadow: 0 0 18px rgba(232,144,58,0.45);
+    }
+
+    .m-name {
+      font-size: 22px;
+      font-weight: normal;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.95);
+      margin-bottom: 0.45rem;
+    }
+
+    .m-role {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.38);
+      margin-bottom: 3rem;
+    }
+
+    .m-links {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .m-links a {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1.1rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.78);
+      text-decoration: none;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .m-links a:active {
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(255,255,255,0.22);
+      color: #fff;
+    }
+
+    .m-links .m-icon {
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.55);
+    }
+
+    .m-desktop {
+      margin-top: 2.8rem;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.2);
+      text-decoration: none;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      padding-bottom: 1px;
+    }
+
+    /* when mobile class is active */
+    html.is-mobile #mobile-page { display: flex; }
+    html.is-mobile #loader,
+    html.is-mobile #stage,
+    html.is-mobile #asciicanvas,
+    html.is-mobile #title,
+    html.is-mobile #contact-backdrop,
+    html.is-mobile #contact-drawer,
+    html.is-mobile #glcanvas,
+    html.is-mobile #controls { display: none !important; }
   </style>
 </head>
 <body>
+  <!-- Mobile detection runs before any paint -->
+  <script>
+    const _forceDesktop = new URLSearchParams(location.search).has('desktop');
+    if (!_forceDesktop && (window.innerWidth < 700 || window.innerHeight > window.innerWidth)) {
+      document.documentElement.classList.add('is-mobile');
+    }
+  </script>
+
+  <!-- Mobile fallback — shown instead of the pond on small/portrait screens -->
+  <div id="mobile-page">
+    <div class="m-wave-wrap">
+      <!-- doubled so the scroll loop is seamless -->
+      <div class="m-wave">~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;</div>
+    </div>
+    <div class="m-fish">&gt;&lt;&gt;</div>
+    <h1 class="m-name">Paul Lewis</h1>
+    <div class="m-role">Your Role / Tagline</div>
+    <div class="m-links">
+      <a href="mailto:contact@paullew.is">
+        <span class="m-icon">@</span>
+        contact@paullew.is
+      </a>
+      <a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener">
+        <span class="m-icon">in</span>
+        linkedin.com/in/paullewispgh
+      </a>
+    </div>
+    <a class="m-desktop" href="?desktop=1">view on desktop &rarr;</a>
+  </div>
+
   <div id="loader"></div>
   <pre id="stage"></pre>
   <canvas id="asciicanvas"></canvas>
@@ -270,18 +467,19 @@
  |_|</pre>
   <div id="contact-backdrop"></div>
   <div id="contact-drawer">
-    <div class="drawer-handle"></div>
-    <button class="close-btn" aria-label="Close">✕</button>
-    <h2>Your Name</h2>
+    <div class="drawer-top">contact</div>
+    <button class="close-btn" aria-label="Close">[×]</button>
+    <h2>Paul Lewis</h2>
     <div class="role">Your Role / Tagline</div>
+    <div class="drawer-rule"></div>
     <div class="links">
       <a href="mailto:contact@paullew.is">
         <span class="icon">@</span>
         contact@paullew.is
       </a>
-      <a href="https://linkedin.com/in/yourhandle" target="_blank" rel="noopener">
+      <a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener">
         <span class="icon">in</span>
-        linkedin.com/in/yourhandle
+        linkedin.com/in/paullewispgh
       </a>
     </div>
   </div>
@@ -290,8 +488,6 @@
   <div id="controls">
     <span id="cycleBar" style="font-family:Consolas,monospace;font-size:11px;letter-spacing:0.12em;color:#888;user-select:none"></span>
     <button id="phosphorBtn">Phosphor: Off</button>
-    <button id="glitchBtn">Glitch: Off</button>
-    <button id="gustBtn">Gust</button>
     <button id="rainBtn">Rain: On</button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
@@ -310,9 +506,10 @@
   <script>
   (() => {
     'use strict';
+    if (document.documentElement.classList.contains('is-mobile')) return;
 
     // ── Sizing ───────────────────────────────────────────────────────────────
-    let fontSize = 10;
+    let fontSize = (window.innerWidth < 700 || window.innerHeight > window.innerWidth) ? 7 : 10;
     let cols, rows;
 
     function charGrid() {
@@ -657,7 +854,27 @@
             r.mat.color.setHSL(0.491, 0.50, lit);
           });
 
-          fishes.forEach(fish => {
+          // Fish separation — accumulate repulsion before individual updates
+          const SEP_RADIUS = 9;
+          const SEP_FORCE  = 0.028;
+          const sepX = new Float32Array(fishes.length);
+          const sepZ = new Float32Array(fishes.length);
+          for (let a = 0; a < fishes.length; a++) {
+            for (let b = a + 1; b < fishes.length; b++) {
+              const dx = fishes[a].pos.x - fishes[b].pos.x;
+              const dz = fishes[a].pos.z - fishes[b].pos.z;
+              const dist2 = dx*dx + dz*dz;
+              if (dist2 < SEP_RADIUS * SEP_RADIUS && dist2 > 0.0001) {
+                const dist  = Math.sqrt(dist2);
+                const force = (1 - dist / SEP_RADIUS) * SEP_FORCE;
+                const nx = dx / dist, nz = dz / dist;
+                sepX[a] += nx * force;  sepZ[a] += nz * force;
+                sepX[b] -= nx * force;  sepZ[b] -= nz * force;
+              }
+            }
+          }
+
+          fishes.forEach((fish, fi) => {
             const { pos, vel, noiseOff } = fish;
 
             // Each koi has its own independent lazy wander
@@ -669,6 +886,10 @@
             const dl  = Math.sqrt(ddx*ddx + ddz*ddz) || 1;
             vel.x += (ddx / dl) * 0.006;
             vel.z += (ddz / dl) * 0.006;
+
+            // Fish-to-fish separation
+            vel.x += sepX[fi];
+            vel.z += sepZ[fi];
 
             // Soft boundary
             if (pos.x >  BX) vel.x -= 0.018; if (pos.x < -BX) vel.x += 0.018;
@@ -853,10 +1074,23 @@
     const LUT_END   = { x: 0, y: 0,  z: 0  };
     const LUM_START = 0.15;
     const LUM_END   = 1.4;
-    const isMobile = window.innerWidth < 600;
+    const isMobile = window.innerWidth < 700 || window.innerHeight > window.innerWidth;
+
+    // Portrait needs a more overhead camera — (0,58,22) was tuned for landscape
+    function mobileCamPosition() {
+      const portrait = window.innerHeight > window.innerWidth;
+      return portrait
+        ? { x: 0, y: 72, z: 10 }   // nearly top-down for portrait
+        : { x: 0, y: 58, z: 22 };  // standard landscape end position
+    }
+
     if (!isMobile) {
       camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
       camera.lookAt(LUT_START.x, LUT_START.y, LUT_START.z);
+    } else {
+      const p = mobileCamPosition();
+      camera.position.set(p.x, p.y, p.z);
+      camera.lookAt(0, 0, 0);
     }
 
     // Contact drawer
@@ -869,9 +1103,6 @@
     titleEl.addEventListener('click', openDrawer);
     backdrop.addEventListener('click', closeDrawer);
     drawer.querySelector('.close-btn').addEventListener('click', closeDrawer);
-
-    const gustBtn = document.getElementById('gustBtn');
-    gustBtn.addEventListener('click', () => FISH.spawnGust());
 
     const rainBtn = document.getElementById('rainBtn');
     rainBtn.style.background = '#e8f4f8';
@@ -888,14 +1119,6 @@
       phosphorBtn.textContent = on ? 'Phosphor: On' : 'Phosphor: Off';
       phosphorBtn.style.background = on ? '#fff8e8' : '';
     });
-
-    const glitchBtn = document.getElementById('glitchBtn');
-    glitchBtn.addEventListener('click', () => {
-      pt.glitch = pt.glitch === 0 ? 0.008 : 0;
-      glitchBtn.textContent = pt.glitch > 0 ? 'Glitch: On' : 'Glitch: Off';
-      glitchBtn.style.background = pt.glitch > 0 ? '#f0ffe8' : '';
-    });
-
 
     // ── Pretext ──────────────────────────────────────────────────────────────
     ({ cols, rows } = charGrid());
@@ -928,6 +1151,9 @@
     fitStage();
 
     window.addEventListener('resize', () => {
+      fontSize = (window.innerWidth < 700 || window.innerHeight > window.innerWidth) ? 7 : 10;
+      pt.font     = `${fontSize}px Consolas, monospace`;
+      pt.fontSize = fontSize;
       ({ cols, rows } = charGrid());
       pt.resize(cols, rows);
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -937,6 +1163,12 @@
       asciiCanvas.height = window.innerHeight;
       fitStage();
       applyMode();
+      // Re-frame camera when orientation changes on mobile / after intro
+      if (isMobile || frameNum > INTRO_FRAMES) {
+        const p = mobileCamPosition();
+        camera.position.set(p.x, p.y, p.z);
+        camera.lookAt(0, 0, 0);
+      }
     });
 
 
@@ -957,9 +1189,10 @@
     function applyDayNight(dayness) {
       if (frameNum <= INTRO_FRAMES) return;
       pt.lumBoost = 0.28 + dayness * (LUM_END - 0.28);
-      pt.satBoost = 0.5  + dayness * (2.8 - 0.5);
+      pt.satBoost = 0.5 + dayness * (2.8 - 0.5);
       _bgScratch.copy(_nightBg).lerp(_dayBg, dayness);
       pt.bg = `#${_bgScratch.getHexString()}`;
+      if (!useCanvasMode) stage.style.background = pt.bg;
       renderer.setClearColor(_bgScratch);
     }
 
@@ -1100,6 +1333,7 @@
 
     // ── Animate ──────────────────────────────────────────────────────────────
     let frameNum = 0;
+    let lastGustFrame = -1800;
     const loader = document.getElementById('loader');
 
     function loop() {
@@ -1131,6 +1365,12 @@
         const fullChars = Array.from(Pretext.CHARS_WILD);
         const count = Math.max(3, Math.round(e * fullChars.length));
         pt.chars = fullChars.slice(0, count);
+      }
+
+      // Random gust — minimum ~10s cooldown, fires roughly every 25-50s
+      if (frameNum - lastGustFrame > 600 && Math.random() < 0.0007) {
+        FISH.spawnGust();
+        lastGustFrame = frameNum;
       }
 
       const dayness = getDayness();
