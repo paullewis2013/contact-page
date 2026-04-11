@@ -35,7 +35,7 @@
       position: fixed;
       bottom: 1.4rem;
       left: 50%;
-      z-index: 3;
+      z-index: 6;
       transform: translateX(-50%);
       display: flex;
       gap: 1.2rem;
@@ -145,10 +145,15 @@
       50%       { text-shadow: 0 0 40px rgba(255,255,255,0.85), 0 0 80px rgba(255,255,255,0.3); color: rgba(255,255,255,1); }
     }
 
+    @keyframes dot-breathe {
+      0%, 100% { color: rgba(232,144,58,0.5); text-shadow: 0 0 6px rgba(232,144,58,0.2); }
+      50%       { color: rgba(232,144,58,1);   text-shadow: 0 0 18px rgba(232,144,58,0.8), 0 0 36px rgba(232,144,58,0.3); }
+    }
     .dot-inner {
-      animation: glow-breathe 3.8s ease-in-out infinite;
+      animation: dot-breathe 3.8s ease-in-out infinite;
       animation-delay: -1.6s;
     }
+
 
     #title {
       position: fixed;
@@ -500,7 +505,6 @@
   <div id="controls">
     <span id="cycleBar" style="font-family:Consolas,monospace;font-size:11px;letter-spacing:0.12em;color:#888;user-select:none"></span>
     <button id="phosphorBtn">Phosphor: Off</button>
-    <button id="rainBtn">Rain: On</button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
 
@@ -570,12 +574,13 @@
 
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
-      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [], gustPetals = [];
+      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [], gustPetals = [], mistPatches = [];
       let sandMesh = null;
       const FISH_COUNT = 12;
       const RIPPLE_COUNT = 80;
       const RAIN_COUNT  = 90;
-      let rainActive = true;
+      let rainActive = false;
+      let mistActive  = false;
       const ringGeo   = new THREE.RingGeometry(1, 1.2, 38);
       const shadowGeo = new THREE.CircleGeometry(1, 20);
       const rainGeo   = new THREE.BoxGeometry(0.07, 3.2, 0.07);
@@ -752,6 +757,17 @@
             veinMesh.position.set(pad.position.x, 0.31, pad.position.z);
             pad.vein = veinMesh;
             objects.push(veinMesh); scene.add(veinMesh);
+
+            // Shadow on pond floor
+            const padShadowMesh = new THREE.Mesh(
+              shadowGeo,
+              new THREE.MeshBasicMaterial({ color: 0x010504, transparent: true, opacity: 0.5, depthWrite: false })
+            );
+            padShadowMesh.scale.set(r * 0.92, r * 0.92, 1);
+            padShadowMesh.rotation.x = -Math.PI / 2;
+            padShadowMesh.position.set(pad.position.x + 1.8, -1.14, pad.position.z + 1.4);
+            pad.shadow = padShadowMesh;
+            objects.push(padShadowMesh); scene.add(padShadowMesh);
           });
 
           // Ripple pool
@@ -827,6 +843,41 @@
               (Math.random() - 0.5) * 80
             );
             raindrops.push({ mesh, speed: 0.55 + Math.random() * 0.35 });
+            objects.push(mesh);
+            scene.add(mesh);
+          }
+          // Mist patches — soft radial blobs drifting near the pond edges
+          // Shared canvas texture: white centre fading to transparent at edges
+          const mistCanvas = document.createElement('canvas');
+          mistCanvas.width = mistCanvas.height = 128;
+          const mCtx = mistCanvas.getContext('2d');
+          const mGrad = mCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+          mGrad.addColorStop(0,    'rgba(255,255,255,0.9)');
+          mGrad.addColorStop(0.45, 'rgba(255,255,255,0.4)');
+          mGrad.addColorStop(1,    'rgba(255,255,255,0)');
+          mCtx.fillStyle = mGrad;
+          mCtx.fillRect(0, 0, 128, 128);
+          const mistTex = new THREE.CanvasTexture(mistCanvas);
+
+          const mistGeo = new THREE.PlaneGeometry(1, 1);
+          for (let i = 0; i < 34; i++) {
+            const angle       = (i / 34) * Math.PI * 2;
+            const r           = 20 + Math.random() * 20;
+            const ax          = Math.cos(angle) * r * 1.3;
+            const az          = Math.sin(angle) * r;
+            const size        = 12 + Math.random() * 18;
+            const baseOpacity = 0.22 + Math.random() * 0.22;
+            const mat = new THREE.MeshBasicMaterial({
+              map: mistTex, color: 0xd8ecea,
+              transparent: true, opacity: baseOpacity,
+              side: THREE.DoubleSide, depthWrite: false, depthTest: false,
+            });
+            const mesh = new THREE.Mesh(mistGeo, mat);
+            mesh.scale.set(size, size, 1);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(ax, 3 + Math.random() * 2, az);
+            mesh.renderOrder = 2;
+            mistPatches.push({ mesh, mat, ax, az, noiseOff: Math.random() * 100, baseOpacity });
             objects.push(mesh);
             scene.add(mesh);
           }
@@ -962,6 +1013,10 @@
               pad.vein.position.z = pad.position.z;
               pad.vein.rotation.z = pad.rotation.z;
             }
+            if (pad.shadow) {
+              pad.shadow.position.x = pad.position.x + 1.8;
+              pad.shadow.position.z = pad.position.z + 1.4;
+            }
           });
 
 
@@ -1009,6 +1064,19 @@
             sandMesh.position.z = noise.simplex2(0,  st * 0.7) * 8;
           }
 
+          // Mist drift — fade in/out based on mistActive, creep with noise
+          mistPatches.forEach((m, i) => {
+            const t      = f * 0.00025 + m.noiseOff;
+            const target = mistActive
+              ? m.baseOpacity * (0.65 + 0.35 * (noise.simplex3(t * 0.4, 0, m.noiseOff) * 0.5 + 0.5))
+              : 0;
+            m.mat.opacity += (target - m.mat.opacity) * 0.006;
+            if (m.mat.opacity > 0.002) {
+              m.mesh.position.x += (m.ax + noise.simplex3(t, i * 0.4, 11) * 7 - m.mesh.position.x) * 0.003;
+              m.mesh.position.z += (m.az + noise.simplex3(i * 0.4, t, 11) * 5 - m.mesh.position.z) * 0.003;
+            }
+          });
+
           // Rain
           raindrops.forEach(r => {
             r.mesh.visible = rainActive;
@@ -1026,10 +1094,8 @@
           });
         },
 
-        toggleRain() {
-          rainActive = !rainActive;
-          return rainActive;
-        },
+        setRain(on) { rainActive = on; },
+        setMist(on) { mistActive = on; },
 
         spawnGust() {
           const count = 65 + Math.floor(Math.random() * 25);
@@ -1079,7 +1145,7 @@
           rainActive = false; sandMesh = null;
           clearScene(objects);
           for (const p of gustPetals) scene.remove(p.group);
-          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0; gustPetals.length = 0;
+          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0; gustPetals.length = 0; mistPatches.length = 0;
         },
 
       };
@@ -1124,14 +1190,6 @@
     titleEl.addEventListener('click', openDrawer);
     backdrop.addEventListener('click', closeDrawer);
     drawer.querySelector('.close-btn').addEventListener('click', closeDrawer);
-
-    const rainBtn = document.getElementById('rainBtn');
-    rainBtn.style.background = '#e8f4f8';
-    rainBtn.addEventListener('click', () => {
-      const on = FISH.toggleRain();
-      rainBtn.textContent = on ? 'Rain: On' : 'Rain: Off';
-      rainBtn.style.background = on ? '#e8f4f8' : '';
-    });
 
     const phosphorBtn = document.getElementById('phosphorBtn');
     phosphorBtn.addEventListener('click', () => {
@@ -1360,7 +1418,37 @@
 
     // ── Animate ──────────────────────────────────────────────────────────────
     let frameNum = 0;
-    let lastGustFrame = -1800;
+    // ── Weather state machine ────────────────────────────────────────────────
+    // Only one effect active at a time: rain | mist | petals | clear
+    let wxState = 'clear';
+    let wxTimer = 900 + Math.floor(Math.random() * 900); // initial clear period
+
+    function tickWeather() {
+      if (--wxTimer > 0) return;
+      if (wxState !== 'clear') {
+        // end current effect, return to clear
+        FISH.setRain(false);
+        FISH.setMist(false);
+        wxState = 'clear';
+        wxTimer = 600 + Math.floor(Math.random() * 1200); // 10–30s clear gap
+      } else {
+        // pick next weather
+        const next = ['rain', 'mist', 'petals'][Math.floor(Math.random() * 3)];
+        if (next === 'rain') {
+          FISH.setRain(true);
+          wxState = 'rain';
+          wxTimer = 1800 + Math.floor(Math.random() * 3600); // 30–90s
+        } else if (next === 'mist') {
+          FISH.setMist(true);
+          wxState = 'mist';
+          wxTimer = 1800 + Math.floor(Math.random() * 2400); // 30–70s
+        } else {
+          FISH.spawnGust();
+          wxState = 'clear'; // petals are fire-and-forget
+          wxTimer = 1800 + Math.floor(Math.random() * 1800); // long cooldown
+        }
+      }
+    }
     const loader = document.getElementById('loader');
 
     function loop() {
@@ -1394,11 +1482,7 @@
         pt.chars = fullChars.slice(0, count);
       }
 
-      // Random gust — minimum ~10s cooldown, fires roughly every 25-50s
-      if (frameNum - lastGustFrame > 600 && Math.random() < 0.0007) {
-        FISH.spawnGust();
-        lastGustFrame = frameNum;
-      }
+      tickWeather();
 
       const dayness = getDayness();
       applyDayNight(dayness);
