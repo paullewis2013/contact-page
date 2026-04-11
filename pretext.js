@@ -27,8 +27,13 @@ class Pretext {
     bg            = '#ffffff',
     jitter        = 0,
     sizeRange     = [1, 1],
-    edgeThreshold = 0,    // normalised Sobel magnitude threshold (0 = off, try 0.08–0.25)
-    edgeColor     = null, // null = use pixel colour; CSS string to force a colour on edges
+    edgeThreshold  = 0,    // normalised Sobel magnitude threshold (0 = off, try 0.08–0.25)
+    edgeColor      = null, // null = use pixel colour; CSS string to force a colour on edges
+    phosphorDecay  = 0,           // 0 = off; try 0.02–0.06 for visible trails
+    phosphorColor  = [255, 176, 0], // base glow colour cells decay toward (amber)
+    scanlines      = false,       // dim every other row
+    invert         = false,       // flip colours
+    glitch         = 0,           // 0 = off; fraction of cells corrupted per frame (try 0.02)
   } = {}) {
     this.cols          = cols;
     this.rows          = rows;
@@ -43,6 +48,11 @@ class Pretext {
     this.sizeRange     = sizeRange;
     this.edgeThreshold = edgeThreshold;
     this.edgeColor     = edgeColor;
+    this.phosphorDecay = phosphorDecay;
+    this.phosphorColor = phosphorColor;
+    this.scanlines     = scanlines;
+    this.invert        = invert;
+    this.glitch        = glitch;
 
     // Downsampling canvas (cols × rows)
     this._sampleCanvas = document.createElement('canvas');
@@ -57,6 +67,11 @@ class Pretext {
     // Per-cell cache for dirty-checking in framePre
     this._prevChar  = null;
     this._prevColor = null;
+
+    // Per-cell phosphor state (Float32Arrays, allocated lazily)
+    this._phosphorR = null;
+    this._phosphorG = null;
+    this._phosphorB = null;
   }
 
   // ── Public render methods ──────────────────────────────────────────────────
@@ -81,6 +96,8 @@ class Pretext {
     const px   = this._sampleCtx.getImageData(0, 0, cols, rows).data;
     const lums = this._buildLums(px, cols, rows, lumBoost);
 
+    if (this.phosphorDecay > 0) this._initPhosphor(cols * rows);
+
     const edgeGrid = edgeThreshold > 0
       ? this._buildEdgeGrid(sourceCanvas)
       : null;
@@ -93,16 +110,28 @@ class Pretext {
         const i = n * 4;
         let r = px[i], g = px[i + 1], b = px[i + 2];
         if (satBoost !== 1.0) [r, g, b] = Pretext._saturate(r, g, b, satBoost);
+        if (this.phosphorDecay > 0) [r, g, b] = this._stepPhosphor(r, g, b, n, lums[n]);
+        if (this.scanlines && y % 2 === 0) { r = r * 0.25 | 0; g = g * 0.25 | 0; b = b * 0.25 | 0; }
+        if (this.invert) { r = 255 - r; g = 255 - g; b = 255 - b; }
 
-        let charStr = chars[Math.round(lums[n] * (chars.length - 1))];
+        const anyEffect = this.phosphorDecay > 0 || this.scanlines || this.invert;
+        const charLum = anyEffect
+          ? Math.min(1, (0.299 * r + 0.587 * g + 0.114 * b) / 255)
+          : lums[n];
+        let charStr = chars[Math.round(charLum * (chars.length - 1))];
         let colorStr = `rgb(${r},${g},${b})`;
+
+        if (this.glitch > 0 && Math.random() < this.glitch) {
+          charStr  = chars[Math.floor(Math.random() * chars.length)];
+          colorStr = `rgb(${Math.random()*255|0},${Math.random()*255|0},${Math.random()*255|0})`;
+        }
 
         if (edgeGrid) {
           const ec = this._edgeCharFromGrid(edgeGrid, n, edgeThreshold);
           if (ec) { charStr = ec; if (edgeColor) colorStr = edgeColor; }
         }
 
-        if (charStr === ' ') continue;
+        if (charStr === ' ' && !anyEffect) continue;
 
         const px_ = (x + 0.5) * cellW + (jitter ? (Math.random() - 0.5) * jitter : 0);
         const py_ = (y + 0.5) * cellH + (jitter ? (Math.random() - 0.5) * jitter : 0);
@@ -120,7 +149,7 @@ class Pretext {
 
   /** Render into a <pre> target — monospace fonts align best. */
   framePre(sourceCanvas, targetEl) {
-    const { cols, rows, chars, satBoost, lumBoost, edgeThreshold, edgeColor } = this;
+    const { cols, rows, chars, satBoost, lumBoost, edgeThreshold, edgeColor, phosphorDecay } = this;
     const total = cols * rows;
 
     // Allocate / reallocate span grid when needed
@@ -144,6 +173,8 @@ class Pretext {
     const px   = this._sampleCtx.getImageData(0, 0, cols, rows).data;
     const lums = this._buildLums(px, cols, rows, lumBoost);
 
+    if (phosphorDecay > 0) this._initPhosphor(cols * rows);
+
     // Full-res Sobel pass → max-pooled edge grid
     const edgeGrid = edgeThreshold > 0
       ? this._buildEdgeGrid(sourceCanvas)
@@ -158,7 +189,11 @@ class Pretext {
         const i = n * 4;
         let r = px[i], g = px[i + 1], b = px[i + 2];
         if (satBoost !== 1.0) [r, g, b] = Pretext._saturate(r, g, b, satBoost);
+        if (phosphorDecay > 0) [r, g, b] = this._stepPhosphor(r, g, b, n, lums[n]);
+        if (this.scanlines && y % 2 === 0) { r = r * 0.25 | 0; g = g * 0.25 | 0; b = b * 0.25 | 0; }
+        if (this.invert) { r = 255 - r; g = 255 - g; b = 255 - b; }
 
+        const anyEffect = phosphorDecay > 0 || this.scanlines || this.invert;
         let ch, color;
 
         if (edgeGrid) {
@@ -170,8 +205,16 @@ class Pretext {
         }
 
         if (!ch) {
-          ch    = chars[Math.round(lums[n] * (chars.length - 1))];
+          const charLum = anyEffect
+            ? Math.min(1, (0.299 * r + 0.587 * g + 0.114 * b) / 255)
+            : lums[n];
+          ch    = chars[Math.round(charLum * (chars.length - 1))];
           color = `rgb(${r},${g},${b})`;
+        }
+
+        if (this.glitch > 0 && Math.random() < this.glitch) {
+          ch    = chars[Math.floor(Math.random() * chars.length)];
+          color = `rgb(${Math.random()*255|0},${Math.random()*255|0},${Math.random()*255|0})`;
         }
 
         if (ch !== prevChar[n] || color !== prevColor[n]) {
@@ -268,6 +311,41 @@ class Pretext {
     return (gx * gy >= 0) ? '\\' : '/';
   }
 
+  // ── Phosphor ───────────────────────────────────────────────────────────────
+
+  _initPhosphor(total) {
+    if (this._phosphorR?.length === total) return;
+    const [pR, pG, pB] = this.phosphorColor;
+    this._phosphorR = new Float32Array(total).fill(pR);
+    this._phosphorG = new Float32Array(total).fill(pG);
+    this._phosphorB = new Float32Array(total).fill(pB);
+  }
+
+  /** Advance the phosphor state for cell n and return the new [r, g, b]. */
+  _stepPhosphor(r, g, b, n, lum) {
+    const [pR, pG, pB] = this.phosphorColor;
+    const decay = this.phosphorDecay;
+    const charge = lum * 0.85; // fast charge when bright, none when dark
+
+    let dR = this._phosphorR[n], dG = this._phosphorG[n], dB = this._phosphorB[n];
+
+    // Decay toward phosphor base color
+    dR += (pR - dR) * decay;
+    dG += (pG - dG) * decay;
+    dB += (pB - dB) * decay;
+
+    // Charge toward actual pixel color
+    dR += (r - dR) * charge;
+    dG += (g - dG) * charge;
+    dB += (b - dB) * charge;
+
+    this._phosphorR[n] = dR;
+    this._phosphorG[n] = dG;
+    this._phosphorB[n] = dB;
+
+    return [Math.round(dR), Math.round(dG), Math.round(dB)];
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   _buildLums(px, cols, rows, lumBoost) {
@@ -316,5 +394,8 @@ class Pretext {
     this._sampleCanvas.height = rows;
     this._prevChar  = null;
     this._prevColor = null;
+    this._phosphorR = null;
+    this._phosphorG = null;
+    this._phosphorB = null;
   }
 }

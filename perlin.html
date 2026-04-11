@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Perlin Noise Playground — ASCII</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -122,6 +123,30 @@
     /* pre sits on top of the canvas; background must be transparent */
     #stage { background: transparent; }
 
+    @media (max-width: 600px) {
+      #modebar {
+        top: 0.7rem;
+        font-size: 11px;
+        padding: 0.2rem 0.3rem;
+      }
+      #modebar button {
+        padding: 0.2rem 0.6rem;
+        font-size: 11px;
+      }
+      #controls {
+        bottom: 0.7rem;
+        gap: 0.6rem;
+        padding: 0.5rem 0.9rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        border-radius: 18px;
+        max-width: calc(100vw - 2rem);
+        white-space: normal;
+      }
+      #controls input[type=range] { width: 60px; }
+      #title { font-size: 7px; top: 42%; transform: translate(-50%, -55%); }
+    }
+
     #asciicanvas {
       position: fixed;
       top: 0; left: 0;
@@ -151,6 +176,11 @@
       transform: translateX(-100%);
     }
 
+    @keyframes glow-breathe {
+      0%, 100% { text-shadow: 0 0 6px rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
+      50%       { text-shadow: 0 0 40px rgba(255,255,255,0.85), 0 0 80px rgba(255,255,255,0.3); color: rgba(255,255,255,1); }
+    }
+
     #title {
       position: fixed;
       top: 50%;
@@ -162,13 +192,136 @@
       line-height: 1.2;
       white-space: pre;
       color: rgba(255, 255, 255, 0.85);
-      text-shadow: 0 0 18px rgba(255, 255, 255, 0.4);
-      pointer-events: none;
+      pointer-events: auto;
       text-align: left;
+      cursor: pointer;
+      user-select: none;
+      animation: glow-breathe 3.8s ease-in-out infinite;
     }
+    #title:hover {
+      color: rgba(255,255,255,1);
+      text-shadow: 0 0 36px rgba(255,255,255,0.75);
+      animation: none;
+    }
+
+
+    /* Contact drawer */
+    #contact-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 19;
+      background: transparent;
+    }
+    #contact-backdrop.open { display: block; }
+
+    #contact-drawer {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%) translateY(100%);
+      z-index: 20;
+      width: min(420px, calc(100vw - 2rem));
+      background: rgba(7, 24, 22, 0.82);
+      backdrop-filter: blur(18px) saturate(1.2);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-bottom: none;
+      border-radius: 18px 18px 0 0;
+      padding: 2rem 2rem 2.4rem;
+      font-family: Consolas, monospace;
+      color: rgba(255,255,255,0.88);
+      transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    #contact-drawer.open {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #contact-drawer .drawer-handle {
+      width: 36px;
+      height: 3px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 2px;
+      margin: 0 auto 1.6rem;
+    }
+
+    #contact-drawer h2 {
+      font-size: 15px;
+      font-weight: normal;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.95);
+      margin-bottom: 0.3rem;
+    }
+
+    #contact-drawer .role {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 1.8rem;
+    }
+
+    #contact-drawer .links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    #contact-drawer .links a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      letter-spacing: 0.03em;
+      transition: color 0.15s;
+    }
+    #contact-drawer .links a:hover { color: rgba(255,255,255,1); }
+
+    #contact-drawer .links .icon {
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.05);
+    }
+
+    #contact-drawer .close-btn {
+      position: absolute;
+      top: 1.1rem;
+      right: 1.2rem;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.35);
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+    }
+    #contact-drawer .close-btn:hover { color: rgba(255,255,255,0.8); }
+
+    @media (max-width: 600px) {
+      #contact-drawer { width: 100vw; border-radius: 14px 14px 0 0; }
+    }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #071c1a;
+      pointer-events: none;
+      transition: opacity 1.4s ease;
+    }
+    #loader.fade-out { opacity: 0; }
   </style>
 </head>
 <body>
+  <div id="loader"></div>
   <pre id="stage"></pre>
   <canvas id="asciicanvas"></canvas>
   <pre id="title">                    _ _               _
@@ -177,6 +330,24 @@
  | |_) | (_| | |_| | | |  __/\ V  V /| \__ \
  | .__/ \__,_|\__,_|_|_|\___| \_/\_(_)_|___/
  |_|</pre>
+  <div id="contact-backdrop"></div>
+  <div id="contact-drawer">
+    <div class="drawer-handle"></div>
+    <button class="close-btn" aria-label="Close">✕</button>
+    <h2>Your Name</h2>
+    <div class="role">Your Role / Tagline</div>
+    <div class="links">
+      <a href="mailto:contact@paullew.is">
+        <span class="icon">@</span>
+        contact@paullew.is
+      </a>
+      <a href="https://linkedin.com/in/yourhandle" target="_blank" rel="noopener">
+        <span class="icon">in</span>
+        linkedin.com/in/yourhandle
+      </a>
+    </div>
+  </div>
+
   <canvas id="glcanvas"></canvas>
   <canvas id="shadercanvas"></canvas>
   <div id="divider"></div>
@@ -197,6 +368,11 @@
       </select>
     </span>
     <span id="overlayControl"><label for="overlay">Overlay</label><input id="overlay" type="range" min="0" max="100" step="1" value="100"></span>
+    <button id="phosphorBtn">Phosphor: Off</button>
+    <button id="scanlinesBtn">Scanlines: Off</button>
+    <button id="glitchBtn">Glitch: Off</button>
+    <button id="invertBtn">Invert: Off</button>
+    <button id="gustBtn">Gust</button>
     <button id="rainBtn">Rain: Off</button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
@@ -257,7 +433,7 @@
 
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
-      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [];
+      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [], gustPetals = [];
       let sandMesh = null;
       const FISH_COUNT = 12;
       const RIPPLE_COUNT = 80;
@@ -368,7 +544,7 @@
           }
 
           // Lily pads
-          [[-20,10],[24,-6],[-4,-22],[32,16],[-26,-4],[12,26],[-16,-16],[28,4],[0,18],[-30,20]].forEach(([x,z], padIdx) => {
+          [[-20,10],[24,-6],[-4,-22],[32,16],[-26,-4],[12,26],[-16,-16],[28,4],[4,30],[-30,20]].forEach(([x,z], padIdx) => {
             const r        = 2.4 + Math.random() * 2.8;
             const segments = 40;
             const geo      = new THREE.CircleGeometry(r, segments);
@@ -402,6 +578,10 @@
             pad.rotation.x = -Math.PI / 2;
             pad.rotation.z = Math.random() * Math.PI * 2;
             pad.position.set(x + (Math.random()-0.5)*4, 0.3, z + (Math.random()-0.5)*4);
+            pad.noiseOff = padIdx * 5.1 + Math.random() * 100;
+            pad.vx = 0; pad.vz = 0;
+            pad.anchorX = pad.position.x;
+            pad.anchorZ = pad.position.z;
             lilyPads.push(pad);
             objects.push(pad); scene.add(pad);
 
@@ -433,6 +613,7 @@
             veinMesh.rotation.x = -Math.PI / 2;
             veinMesh.rotation.z = pad.rotation.z;
             veinMesh.position.set(pad.position.x, 0.31, pad.position.z);
+            pad.vein = veinMesh;
             objects.push(veinMesh); scene.add(veinMesh);
           });
 
@@ -496,34 +677,6 @@
             scene.add(group);
           }
 
-          // Petals — scattered across the pond, above lily pads
-          for (let i = 0; i < 24; i++) {
-            const col  = PETAL_COLORS[Math.floor(Math.random() * PETAL_COLORS.length)];
-            const mat  = new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide });
-            const mesh = new THREE.Mesh(petalGeo, mat);
-            const size = 1.1 + Math.random() * 0.9;
-            mesh.scale.set(size, size, 1);
-            mesh.rotation.x = -Math.PI / 2;
-
-            const group = new THREE.Group();
-            group.position.set(
-              (Math.random() - 0.5) * 100,
-              0.55,
-              (Math.random() - 0.5) * 80
-            );
-            group.rotation.y = Math.random() * Math.PI * 2;
-            group.add(mesh);
-
-            petals.push({
-              group,
-              vx: (Math.random() - 0.5) * 0.04 + 0.018,
-              vz: (Math.random() - 0.5) * 0.04 + 0.010,
-              spin:     (Math.random() < 0.5 ? 1 : -1) * (0.006 + Math.random() * 0.010),
-              noiseOff: Math.random() * 100,
-            });
-            objects.push(group);
-            scene.add(group);
-          }
 
           // Rain pool — pre-allocated, hidden until toggled on
           for (let i = 0; i < RAIN_COUNT; i++) {
@@ -630,30 +783,48 @@
             fish.shadowGroup.rotation.y = Math.atan2(vel.x, vel.z);
           });
 
-          // Lily pads — gentle drift rotation
+          // Lily pads — gentle drift rotation + slow positional drift
           lilyPads.forEach((pad, i) => {
             pad.rotation.z += Math.sin(f * 0.006 + i * 1.7) * 0.0006;
+            const t = f * 0.0008 + pad.noiseOff;
+            pad.vx += noise.simplex3(t,       i * 0.4, 7) * 0.0003;
+            pad.vz += noise.simplex3(i * 0.4, t,       7) * 0.0003;
+            // Spring back toward anchor
+            pad.vx += (pad.anchorX - pad.position.x) * 0.0012;
+            pad.vz += (pad.anchorZ - pad.position.z) * 0.0012;
+            const spd = Math.sqrt(pad.vx * pad.vx + pad.vz * pad.vz);
+            if (spd > 0.012) { pad.vx *= 0.012 / spd; pad.vz *= 0.012 / spd; }
+            pad.position.x += pad.vx;
+            pad.position.z += pad.vz;
+            if (pad.vein) {
+              pad.vein.position.x = pad.position.x;
+              pad.vein.position.z = pad.position.z;
+              pad.vein.rotation.z = pad.rotation.z;
+            }
           });
 
-          // Petals — drift on a light breeze, spin slowly, bob gently
-          petals.forEach((p, i) => {
-            const t = f * 0.0022 + p.noiseOff;
-            p.vx += noise.simplex3(t,        i * 0.6, 3) * 0.0015;
-            p.vz += noise.simplex3(i * 0.6,  t,       3) * 0.0015;
-            const spd = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
-            if (spd > 0.065) { p.vx *= 0.065 / spd; p.vz *= 0.065 / spd; }
 
+
+          // Gust petals — fast wind burst, fade out over lifetime
+          for (let gi = gustPetals.length - 1; gi >= 0; gi--) {
+            const p = gustPetals[gi];
+            p.life++;
+            const alpha = Math.max(0, 1 - p.life / p.maxLife);
+            p.mat.opacity = alpha;
+            const t = f * 0.003 + p.noiseOff;
+            p.vx += noise.simplex3(t, gi * 0.5, 9) * 0.004;
+            p.vz += noise.simplex3(gi * 0.5, t, 9) * 0.003;
+            const spd = Math.sqrt(p.vx * p.vx + p.vz * p.vz);
+            if (spd > p.maxSpd) { p.vx *= p.maxSpd / spd; p.vz *= p.maxSpd / spd; }
             p.group.position.x += p.vx;
             p.group.position.z += p.vz;
-            p.group.position.y  = 0.55 + Math.sin(f * 0.016 + p.noiseOff) * 0.12;
+            p.group.position.y  = 0.7 + Math.sin(f * 0.018 + p.noiseOff) * 0.2 + (p.life / p.maxLife) * -0.3;
             p.group.rotation.y += p.spin;
-
-            // Wrap — re-enter from the opposite edge
-            if (p.group.position.x >  56) p.group.position.x = -56;
-            if (p.group.position.x < -56) p.group.position.x =  56;
-            if (p.group.position.z >  44) p.group.position.z = -44;
-            if (p.group.position.z < -44) p.group.position.z =  44;
-          });
+            if (alpha <= 0) {
+              scene.remove(p.group);
+              gustPetals.splice(gi, 1);
+            }
+          }
 
           // Water skimmers — rapid noisy bursts
           skimmers.forEach((s, i) => {
@@ -699,10 +870,45 @@
           return rainActive;
         },
 
+        spawnGust() {
+          const count = 65 + Math.floor(Math.random() * 25);
+          // Wind blows roughly left-to-right with a slight Z spread
+          for (let i = 0; i < count; i++) {
+            const col = PETAL_COLORS[Math.floor(Math.random() * PETAL_COLORS.length)];
+            const mat = new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: 1 });
+            const mesh = new THREE.Mesh(petalGeo, mat);
+            const size = 1.0 + Math.random() * 1.2;
+            mesh.scale.set(size, size, 1);
+            mesh.rotation.x = -Math.PI / 2;
+            const group = new THREE.Group();
+            // Start off the left edge, scattered along Z
+            group.position.set(
+              -60 + Math.random() * 20,
+              0.55 + Math.random() * 1.8,
+              (Math.random() - 0.5) * 90
+            );
+            group.rotation.y = Math.random() * Math.PI * 2;
+            group.add(mesh);
+            scene.add(group);
+            const maxLife = 420 + Math.floor(Math.random() * 240); // ~7-11 seconds at 60fps
+            gustPetals.push({
+              group, mat,
+              vx: 0.18 + Math.random() * 0.14,
+              vz: (Math.random() - 0.5) * 0.08,
+              spin: (Math.random() < 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03),
+              noiseOff: Math.random() * 100,
+              maxSpd: 0.22 + Math.random() * 0.08,
+              life: 0,
+              maxLife,
+            });
+          }
+        },
+
         dispose() {
           rainActive = false; sandMesh = null;
           clearScene(objects);
-          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0;
+          for (const p of gustPetals) scene.remove(p.group);
+          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0; gustPetals.length = 0;
         },
 
       };
@@ -710,11 +916,54 @@
 
     FISH.init();
 
+    // Contact drawer
+    const drawer   = document.getElementById('contact-drawer');
+    const backdrop = document.getElementById('contact-backdrop');
+    const titleEl  = document.getElementById('title');
+    let drawerOpen = false;
+    function openDrawer()  { drawer.classList.add('open'); backdrop.classList.add('open'); drawerOpen = true; }
+    function closeDrawer() { drawer.classList.remove('open'); backdrop.classList.remove('open'); drawerOpen = false; }
+    titleEl.addEventListener('click', openDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+    drawer.querySelector('.close-btn').addEventListener('click', closeDrawer);
+
+    const gustBtn = document.getElementById('gustBtn');
+    gustBtn.addEventListener('click', () => FISH.spawnGust());
+
     const rainBtn = document.getElementById('rainBtn');
     rainBtn.addEventListener('click', () => {
       const on = FISH.toggleRain();
       rainBtn.textContent = on ? 'Rain: On' : 'Rain: Off';
       rainBtn.style.background = on ? '#e8f4f8' : '';
+    });
+
+    const phosphorBtn = document.getElementById('phosphorBtn');
+    phosphorBtn.addEventListener('click', () => {
+      const on = pt.phosphorDecay === 0;
+      pt.phosphorDecay = on ? 0.03 : 0;
+      phosphorBtn.textContent = on ? 'Phosphor: On' : 'Phosphor: Off';
+      phosphorBtn.style.background = on ? '#fff8e8' : '';
+    });
+
+    const scanlinesBtn = document.getElementById('scanlinesBtn');
+    scanlinesBtn.addEventListener('click', () => {
+      pt.scanlines = !pt.scanlines;
+      scanlinesBtn.textContent = pt.scanlines ? 'Scanlines: On' : 'Scanlines: Off';
+      scanlinesBtn.style.background = pt.scanlines ? '#f0f0f0' : '';
+    });
+
+    const glitchBtn = document.getElementById('glitchBtn');
+    glitchBtn.addEventListener('click', () => {
+      pt.glitch = pt.glitch === 0 ? 0.008 : 0;
+      glitchBtn.textContent = pt.glitch > 0 ? 'Glitch: On' : 'Glitch: Off';
+      glitchBtn.style.background = pt.glitch > 0 ? '#f0ffe8' : '';
+    });
+
+    const invertBtn = document.getElementById('invertBtn');
+    invertBtn.addEventListener('click', () => {
+      pt.invert = !pt.invert;
+      invertBtn.textContent = pt.invert ? 'Invert: On' : 'Invert: Off';
+      invertBtn.style.background = pt.invert ? '#e8f0ff' : '';
     });
 
     // ── Pretext ──────────────────────────────────────────────────────────────
@@ -742,6 +991,8 @@
       font: `${fontSize}px Consolas, monospace`,
       fontSize,
       bg: '#071c1a',
+      phosphorDecay: 0,
+      phosphorColor: [255, 176, 0],
     });
     fitStage();
 
@@ -933,11 +1184,16 @@
 
     // ── Animate ──────────────────────────────────────────────────────────────
     let frameNum = 0;
+    const loader = document.getElementById('loader');
 
     function loop() {
       if (!running) return;
       requestAnimationFrame(loop);
       frameNum++;
+      if (frameNum === 2) {
+        loader.classList.add('fade-out');
+        loader.addEventListener('transitionend', () => loader.remove(), { once: true });
+      }
       FISH.update(frameNum);
       tickSplitMode();
       renderer.render(scene, camera);
@@ -950,6 +1206,7 @@
         pt.framePre(src, stage);
       }
     }
+
     loop();
   })();
   </script>
