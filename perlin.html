@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <title>Perlin Noise Playground — ASCII</title>
+  <title>paullew.is</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -49,6 +49,13 @@
       color: #333;
       backdrop-filter: blur(6px);
       white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #controls.visible {
+      opacity: 1;
+      pointer-events: auto;
     }
 
     #controls label { font-weight: 700; margin-right: 0.25rem; }
@@ -136,6 +143,11 @@
     @keyframes glow-breathe {
       0%, 100% { text-shadow: 0 0 6px rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
       50%       { text-shadow: 0 0 40px rgba(255,255,255,0.85), 0 0 80px rgba(255,255,255,0.3); color: rgba(255,255,255,1); }
+    }
+
+    .dot-inner {
+      animation: glow-breathe 3.8s ease-in-out infinite;
+      animation-delay: -1.6s;
     }
 
     #title {
@@ -335,20 +347,16 @@
       to   { transform: translateX(-50%); }
     }
 
-    .m-fish {
-      font-size: 22px;
-      letter-spacing: 0.12em;
-      color: #e8903a;
-      margin-bottom: 2rem;
-      text-shadow: 0 0 18px rgba(232,144,58,0.45);
-    }
-
-    .m-name {
-      font-size: 22px;
-      font-weight: normal;
-      letter-spacing: 0.04em;
-      color: rgba(255,255,255,0.95);
-      margin-bottom: 0.45rem;
+    .m-title {
+      font-family: Consolas, monospace;
+      font-size: clamp(5px, 2vw, 8px);
+      line-height: 1.2;
+      white-space: pre;
+      color: rgba(255,255,255,0.85);
+      text-align: left;
+      user-select: none;
+      animation: glow-breathe 3.8s ease-in-out infinite;
+      margin-bottom: 1.6rem;
     }
 
     .m-role {
@@ -440,9 +448,13 @@
       <!-- doubled so the scroll loop is seamless -->
       <div class="m-wave">~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;</div>
     </div>
-    <div class="m-fish">&gt;&lt;&gt;</div>
-    <h1 class="m-name">Paul Lewis</h1>
-    <div class="m-role">Your Role / Tagline</div>
+    <pre class="m-title">                    _ _               _
+  _ __   __ _ _   _| | | _____      _(_)___
+ | '_ \ / _` | | | | | |/ _ \ \ /\ / / / __|
+ | |_) | (_| | |_| | | |  __/\ V  V /| \__ \
+ | .__/ \__,_|\__,_|_|_|\___| \_/\_(<span class="dot-inner">_</span>)_|___/
+ |_|</pre>
+    <div class="m-role">Fullstack Software Engineer · Product & Design Focused</div>
     <div class="m-links">
       <a href="mailto:contact@paullew.is">
         <span class="m-icon">@</span>
@@ -463,14 +475,14 @@
   _ __   __ _ _   _| | | _____      _(_)___
  | '_ \ / _` | | | | | |/ _ \ \ /\ / / / __|
  | |_) | (_| | |_| | | |  __/\ V  V /| \__ \
- | .__/ \__,_|\__,_|_|_|\___| \_/\_(_)_|___/
+ | .__/ \__,_|\__,_|_|_|\___| \_/\_(<span class="dot-inner">_</span>)_|___/
  |_|</pre>
   <div id="contact-backdrop"></div>
   <div id="contact-drawer">
     <div class="drawer-top">contact</div>
     <button class="close-btn" aria-label="Close">[×]</button>
     <h2>Paul Lewis</h2>
-    <div class="role">Your Role / Tagline</div>
+    <div class="role">Fullstack Software Engineer · Product & Design Focused</div>
     <div class="drawer-rule"></div>
     <div class="links">
       <a href="mailto:contact@paullew.is">
@@ -506,6 +518,15 @@
   <script>
   (() => {
     'use strict';
+    // ── Domain dot cycling ───────────────────────────────────────────────────
+    const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
+    const dotInners = document.querySelectorAll('.dot-inner');
+    let dotIdx = 0;
+    setInterval(() => {
+      dotIdx = (dotIdx + 1) % DOT_CHARS.length;
+      dotInners.forEach(el => el.textContent = DOT_CHARS[dotIdx]);
+    }, 80);
+
     if (document.documentElement.classList.contains('is-mobile')) return;
 
     // ── Sizing ───────────────────────────────────────────────────────────────
@@ -1329,6 +1350,12 @@
       running = !running;
       pauseBtn.textContent = running ? '⏸ Pause' : '▶ Play';
       if (running) loop();
+    });
+
+    // ── Controls toggle (?) ──────────────────────────────────────────────────
+    const controlsEl = document.getElementById('controls');
+    document.addEventListener('keydown', e => {
+      if (e.key === '?' && !drawerOpen) controlsEl.classList.toggle('visible');
     });
 
     // ── Animate ──────────────────────────────────────────────────────────────
