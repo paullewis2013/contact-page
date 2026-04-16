@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#071c1a"/>
+
+  <!-- Water ripple -->
+  <text
+    x="16" y="27"
+    text-anchor="middle"
+    font-family="Consolas,monospace"
+    font-size="7"
+    letter-spacing="0.8"
+    fill="#1d7a55"
+    opacity="0.85"
+  >~·~·~</text>
+
+  <!-- Koi fish ><> -->
+  <text
+    x="16" y="19"
+    text-anchor="middle"
+    font-family="Consolas,monospace"
+    font-size="13"
+    fill="#e8903a"
+    filter="url(#glow)"
+  >&gt;&lt;&gt;</text>
+</svg>
