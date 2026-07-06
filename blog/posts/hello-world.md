@@ -1,6 +1,6 @@
 # Hello, world
 
-This is the first post on the new writing section. Posts are plain Markdown
+This is a placeholder post to preview the writing section. Posts are plain Markdown
 files rendered in the browser — no build step, no static site generator,
 same zero-dependency spirit as the pond on the home page.
 
@@ -36,8 +36,6 @@ pond.drift();
 | ----------- | --------- |
 | headings    | yes       |
 | tables      | yes       |
-| koi         | implied   |
+| koi         | yes.      |
 
 ---
-
-> The koi do not read the blog, but they appreciate that it exists.
