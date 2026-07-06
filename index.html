@@ -9,28 +9,25 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #fafafa;
+      background: #071c1a;
       overflow: hidden;
-      margin: 0;
-      touch-action: none;
       -webkit-tap-highlight-color: transparent;
     }
 
-    #stage {
-      display: block;
+    /* The one and only render target */
+    #ascii {
       position: fixed;
       top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh; /* track the visible viewport on mobile (iOS toolbars) */
       z-index: 3;
-      font-size: 11px;
-      line-height: 1.15;
-      letter-spacing: 0.05em;
-      white-space: pre;
-      font-family: Consolas, monospace;
     }
 
-    /* Top mode bar */
+    /* Offscreen WebGL render target — tiny, never visible */
+    #glcanvas { display: none; }
 
-    /* Controls overlay */
+    /* Controls overlay (toggled with '?') */
     #controls {
       position: fixed;
       bottom: 1.4rem;
@@ -48,6 +45,7 @@
       font-size: 12px;
       color: #333;
       backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       white-space: nowrap;
       opacity: 0;
       pointer-events: none;
@@ -58,25 +56,7 @@
       pointer-events: auto;
     }
 
-    #controls label { font-weight: 700; margin-right: 0.25rem; }
-
-    #controls input[type=range] {
-      width: 80px;
-      accent-color: #cb4b16;
-      cursor: pointer;
-      vertical-align: middle;
-    }
-
-    #controls select {
-      font-size: 12px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 0.15rem 0.4rem;
-      cursor: pointer;
-      background: #fff;
-    }
-
-    #pauseBtn {
+    #controls button {
       font-size: 12px;
       font-weight: 700;
       border: 1px solid #ccc;
@@ -85,34 +65,24 @@
       cursor: pointer;
       background: #fff;
       transition: background 0.15s;
-    }
-    #pauseBtn:hover { background: #f0f0f0; }
-
-
-    #glcanvas {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: fill;
-      /* render target only — never directly visible */
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    #stage {
-      width: 100vw;
-      height: 100vh;
-      background: #071c1a; /* overwritten each frame by applyDayNight */
-    }
-
-    #controls button {
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
+    #controls button:hover { background: #f0f0f0; }
+
+    #fontBar {
+      font-family: Consolas, Menlo, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #888;
+      user-select: none;
+      cursor: pointer;
+    }
+    #fontBar { touch-action: none; } /* pointer-drag scrubbing on touch */
 
     @media (max-width: 600px) {
       #controls {
-        bottom: 0.7rem;
+        bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
         gap: 0.55rem;
         padding: 0.45rem 0.85rem;
         flex-wrap: wrap;
@@ -122,261 +92,64 @@
         white-space: normal;
       }
       #controls button { min-height: 32px; padding: 0.2rem 0.65rem; }
-      #phosphorBtn { display: none; }
-      #title {
-        font-size: clamp(5px, 1.8vw, 8px);
-        top: 42%;
-        transform: translate(-50%, -55%);
-      }
     }
 
-    #asciicanvas {
+    /* ── Invisible hit targets over the canvas-stamped UI ─────────────────
+       The title, contact hint, and nav link are drawn into the character
+       grid itself (see stampUI in the script); these transparent elements
+       sit on top of those cells to provide real click/hover/keyboard
+       semantics. Positioned from cell coordinates by positionHits(). */
+    .hit {
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      z-index: 3;
-      display: none;
-    }
-
-
-
-    @keyframes glow-breathe {
-      0%, 100% { text-shadow: 0 0 6px rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
-      50%       { text-shadow: 0 0 40px rgba(255,255,255,0.85), 0 0 80px rgba(255,255,255,0.3); color: rgba(255,255,255,1); }
-    }
-
-    @keyframes dot-breathe {
-      0%, 100% { color: rgba(232,144,58,0.5); text-shadow: 0 0 6px rgba(232,144,58,0.2); }
-      50%       { color: rgba(232,144,58,1);   text-shadow: 0 0 18px rgba(232,144,58,0.8), 0 0 36px rgba(232,144,58,0.3); }
-    }
-    .dot-inner {
-      animation: dot-breathe 3.8s ease-in-out infinite;
-      animation-delay: -1.6s;
-    }
-    .dot-paren {
-      color: rgba(232,144,58,0.7);
-    }
-
-
-    /* ── Title group: centres both the ASCII art and the hint as one block ── */
-    #title-group {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
       z-index: 5;
-      display: flex;
-      width: max-content;
-      flex-direction: column;
-      align-items: flex-start;
-      pointer-events: none;
-    }
-
-    #title {
-      font-family: Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.2;
-      white-space: pre;
-      color: rgba(255, 255, 255, 0.85);
-      pointer-events: auto;
-      text-align: left;
-      cursor: pointer;
-      user-select: none;
-      animation: glow-breathe 3.8s ease-in-out infinite;
-    }
-    #title:hover {
-      color: rgba(255,255,255,1);
-      text-shadow: 0 0 36px rgba(255,255,255,0.75);
-      animation: none;
-    }
-
-    @keyframes hint-fade-in {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-
-    #contact-hint {
-      font-family: Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.2;
-      white-space: pre;
-      letter-spacing: 0;
-      align-self: center;
-      color: rgba(232,144,58,0.55);
-      pointer-events: auto;
-      cursor: pointer;
-      user-select: none;
-      opacity: 0;
-      animation: hint-fade-in 0.8s ease 3.2s both;
-    }
-    #contact-hint:hover {
-      color: rgba(232,144,58,0.9);
-    }
-
-    /* ── Sections nav ──────────────────────────────────────────────────────── */
-    #sections-nav {
-      position: fixed;
-      top: 1.6rem;
-      right: 1.8rem;
-      z-index: 6;
-      font-family: Consolas, monospace;
-      font-size: 10px;
-      letter-spacing: 0.13em;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0.55rem;
-      opacity: 0;
-      animation: hint-fade-in 0.5s ease 3.6s both;
-    }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: rgba(255,255,255,0.22);
-      cursor: default;
-      white-space: nowrap;
-    }
-    .nav-item .nav-soon {
-      font-size: 8px;
-      letter-spacing: 0.1em;
-      color: rgba(232,144,58,0.3);
-      border: 1px solid rgba(232,144,58,0.2);
-      border-radius: 2px;
-      padding: 0 3px;
-      line-height: 1.5;
-    }
-    @media (max-width: 600px) {
-      #sections-nav { display: none; }
-    }
-
-
-    /* Contact drawer */
-    #contact-backdrop {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 19;
       background: transparent;
-    }
-    #contact-backdrop.open { display: block; }
-
-    #contact-drawer {
-      position: fixed;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%) translateY(100%);
-      z-index: 20;
-      width: min(420px, calc(100vw - 2rem));
-      background: #071c1a;
-      border: 1px solid rgba(232,144,58,0.28);
-      border-top: 2px solid #e8903a;
-      border-bottom: none;
-      border-radius: 0;
-      padding: 1.6rem 2rem 2.4rem;
-      font-family: Consolas, monospace;
-      color: rgba(255,255,255,0.88);
-      transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
-    }
-    #contact-drawer.open {
-      transform: translateX(-50%) translateY(0);
-    }
-
-    #contact-drawer .drawer-top {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin-bottom: 1.6rem;
-      font-size: 9px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #e8903a;
-    }
-    #contact-drawer .drawer-top::before,
-    #contact-drawer .drawer-top::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: rgba(232,144,58,0.3);
-    }
-
-    #contact-drawer h2 {
-      font-size: 15px;
-      font-weight: normal;
-      letter-spacing: 0.04em;
-      color: rgba(255,255,255,0.95);
-      margin-bottom: 0.3rem;
-    }
-
-    #contact-drawer .role {
-      font-size: 10px;
-      color: #2db87a;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-bottom: 0;
-    }
-
-    #contact-drawer .drawer-rule {
-      height: 1px;
-      background: rgba(255,255,255,0.07);
-      margin: 1.4rem 0;
-    }
-
-    #contact-drawer .links {
-      display: flex;
-      flex-direction: column;
-      gap: 0.85rem;
-    }
-
-    #contact-drawer .links a {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      font-size: 12px;
-      color: rgba(255,255,255,0.65);
-      text-decoration: none;
-      letter-spacing: 0.03em;
-      transition: color 0.15s;
-    }
-    #contact-drawer .links a:hover { color: #e8903a; }
-
-    #contact-drawer .links .icon {
-      width: 28px;
-      height: 28px;
-      border: 1px solid rgba(232,144,58,0.3);
-      border-radius: 3px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      flex-shrink: 0;
-      background: rgba(232,144,58,0.05);
-      color: #e8903a;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    #contact-drawer .links a:hover .icon {
-      border-color: rgba(232,144,58,0.65);
-      background: rgba(232,144,58,0.1);
-    }
-
-    #contact-drawer .close-btn {
-      position: absolute;
-      top: 1rem;
-      right: 1.2rem;
-      background: none;
       border: none;
-      color: rgba(232,144,58,0.4);
-      font-size: 14px;
-      font-family: Consolas, monospace;
+      padding: 0;
+      margin: 0;
       cursor: pointer;
-      line-height: 1;
-      padding: 0.2rem 0.4rem;
-      letter-spacing: 0;
+      color: transparent;
+      font-size: 0;
+      -webkit-tap-highlight-color: transparent;
     }
-    #contact-drawer .close-btn:hover { color: #e8903a; }
+    /* Contact link rows — HTML text dressed as stamped glyphs. Font size and
+       line height are set from the live grid metrics by positionHits(). */
+    #contact-links a, #contact-links button {
+      position: fixed;
+      z-index: 5;
+      font-family: Consolas, Menlo, monospace;
+      white-space: pre;
+      background: #071c1a; /* matches pt.bg — reads as cleared cells */
+      border: none;
+      padding: 0;
+      margin: 0;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      transition-delay: var(--d, 0s);
+    }
+    #contact-links.open a, #contact-links.open button { opacity: 1; }
+    #contact-links .c-row { color: rgba(255,255,255,0.75); }
+    #contact-links .c-row .ci { color: rgba(232,144,58,0.7); }
+    #contact-links .c-row:hover,
+    #contact-links .c-row:hover .ci { color: #e8903a; }
+    #contact-links .c-copy {
+      color: rgba(232,144,58,0.55);
+      width: 8ch;
+      text-align: right;
+      font-size: inherit;
+    }
+    #contact-links .c-copy:hover { color: #e8903a; }
+    #contact-links .c-copy.done  { color: #2db87a; }
+    #contact-links ::selection { background: rgba(232,144,58,0.35); }
+    #contact-links a:focus-visible, #contact-links button:focus-visible {
+      outline: 1px dashed rgba(232,144,58,0.8);
+      outline-offset: 2px;
+    }
 
-    @media (max-width: 600px) {
-      #contact-drawer { width: 100vw; border-radius: 0; }
+    .hit:focus-visible {
+      outline: 1px dashed rgba(232,144,58,0.8);
+      outline-offset: 3px;
     }
 
     #loader {
@@ -388,206 +161,29 @@
       transition: opacity 0.8s ease;
     }
     #loader.fade-out { opacity: 0; }
-
-    /* ── Mobile fallback ─────────────────────────────────────────────────── */
-    #mobile-page {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: #071c1a;
-      color: rgba(255,255,255,0.88);
-      font-family: Consolas, monospace;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2.5rem 2rem 3rem;
-      gap: 0;
-      overflow: hidden;
-    }
-
-    /* scrolling wave strip */
-    .m-wave-wrap {
-      width: 100%;
-      overflow: hidden;
-      margin-bottom: 2.8rem;
-      opacity: 0.35;
-    }
-    .m-wave {
-      white-space: nowrap;
-      font-size: 13px;
-      letter-spacing: 0.18em;
-      color: #2db87a;
-      animation: wave-scroll 18s linear infinite;
-    }
-    @keyframes wave-scroll {
-      from { transform: translateX(0); }
-      to   { transform: translateX(-50%); }
-    }
-
-    .m-title {
-      font-family: Consolas, monospace;
-      font-size: clamp(5px, 2vw, 8px);
-      line-height: 1.2;
-      white-space: pre;
-      color: rgba(255,255,255,0.85);
-      text-align: left;
-      user-select: none;
-      animation: glow-breathe 3.8s ease-in-out infinite;
-      margin-bottom: 1.6rem;
-    }
-
-    .m-role {
-      font-size: 11px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.38);
-      margin-bottom: 3rem;
-    }
-
-    .m-links {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      width: 100%;
-      max-width: 320px;
-    }
-
-    .m-links a {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 0.85rem 1.1rem;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.04);
-      color: rgba(255,255,255,0.78);
-      text-decoration: none;
-      font-size: 13px;
-      letter-spacing: 0.02em;
-      transition: background 0.15s, border-color 0.15s, color 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .m-links a:active {
-      background: rgba(255,255,255,0.09);
-      border-color: rgba(255,255,255,0.22);
-      color: #fff;
-    }
-
-    .m-links .m-icon {
-      width: 30px;
-      height: 30px;
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.05);
-      color: rgba(255,255,255,0.55);
-    }
-
-    .m-desktop {
-      margin-top: 2.8rem;
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      color: rgba(255,255,255,0.2);
-      text-decoration: none;
-      text-transform: uppercase;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-      padding-bottom: 1px;
-    }
-
-    /* when mobile class is active */
-    html.is-mobile #mobile-page { display: flex; }
-    html.is-mobile #loader,
-    html.is-mobile #stage,
-    html.is-mobile #asciicanvas,
-    html.is-mobile #title-group,
-    html.is-mobile #sections-nav,
-    html.is-mobile #contact-backdrop,
-    html.is-mobile #contact-drawer,
-    html.is-mobile #glcanvas,
-    html.is-mobile #controls { display: none !important; }
   </style>
 </head>
 <body>
-  <!-- Mobile detection runs before any paint -->
-  <script>
-    const _forceDesktop = new URLSearchParams(location.search).has('desktop');
-    if (!_forceDesktop && (window.innerWidth < 700 || window.innerHeight > window.innerWidth)) {
-      document.documentElement.classList.add('is-mobile');
-    }
-  </script>
-
-  <!-- Mobile fallback — shown instead of the pond on small/portrait screens -->
-  <div id="mobile-page">
-    <div class="m-wave-wrap">
-      <!-- doubled so the scroll loop is seamless -->
-      <div class="m-wave">~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;~&nbsp;·&nbsp;</div>
-    </div>
-    <pre class="m-title">                    _ _               _
-  _ __   __ _ _   _| | | _____      _(_)___
- | '_ \ / _` | | | | | |/ _ \ \ /\ / / / __|
- | |_) | (_| | |_| | | |  __/\ V  V /| \__ \
- | .__/ \__,_|\__,_|_|_|\___| \_/\_<span class="dot-paren">(</span><span class="dot-inner">_</span><span class="dot-paren">)</span>_|___/
- |_|</pre>
-    <div class="m-role">Fullstack Software Engineer · Product & Design Focused</div>
-    <div class="m-links">
-      <a href="mailto:contact@paullew.is">
-        <span class="m-icon">@</span>
-        contact@paullew.is
-      </a>
-      <a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener">
-        <span class="m-icon">in</span>
-        linkedin.com/in/paullewispgh
-      </a>
-    </div>
-    <a class="m-desktop" href="?desktop=1">view on desktop &rarr;</a>
-  </div>
-
   <div id="loader"></div>
-  <pre id="stage"></pre>
-  <canvas id="asciicanvas"></canvas>
-  <div id="title-group">
-    <pre id="title">                    _ _               _
-  _ __   __ _ _   _| | | _____      _(_)___
- | '_ \ / _` | | | | | |/ _ \ \ /\ / / / __|
- | |_) | (_| | |_| | | |  __/\ V  V /| \__ \
- | .__/ \__,_|\__,_|_|_|\___| \_/\_<span class="dot-paren">(</span><span class="dot-inner">_</span><span class="dot-paren">)</span>_|___/
- |_|</pre>
-    <div id="contact-hint">[ contact ]</div>
-  </div>
+  <canvas id="ascii"></canvas>
+  <!-- Interactive layer for the canvas-stamped title / hint / nav -->
+  <button class="hit" id="title-hit" aria-label="paullew.is — open contact"></button>
+  <button class="hit" id="hint-hit" aria-label="Open contact"></button>
+  <a class="hit" id="nav-hit" href="blog/index.html" aria-label="Writing"></a>
+  <button class="hit" id="ctl-hit" aria-label="Toggle controls"></button>
 
-  <nav id="sections-nav" aria-label="Coming soon">
-    <div class="nav-item">/ writing <span class="nav-soon">soon</span></div>
-    <div class="nav-item">/ work <span class="nav-soon">soon</span></div>
-    <div class="nav-item">/ now <span class="nav-soon">soon</span></div>
-  </nav>
-
-  <div id="contact-backdrop"></div>
-  <div id="contact-drawer">
-    <div class="drawer-top">contact</div>
-    <button class="close-btn" aria-label="Close">[×]</button>
-    <h2>Paul Lewis</h2>
-    <div class="role">Fullstack Software Engineer · Product & Design Focused</div>
-    <div class="drawer-rule"></div>
-    <div class="links">
-      <a href="mailto:contact@paullew.is">
-        <span class="icon">@</span>
-        contact@paullew.is
-      </a>
-      <a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener">
-        <span class="icon">in</span>
-        linkedin.com/in/paullewispgh
-      </a>
-    </div>
+  <!-- Contact link rows: real HTML text (selectable, copyable, right-clickable)
+       positioned and sized to match the character grid exactly -->
+  <div id="contact-links" hidden>
+    <a class="c-row" id="c-mail" href="mailto:contact@paullew.is" style="--d:0.17s"><span class="ci">@ </span> contact@paullew.is</a>
+    <button class="c-copy" id="c-copy" style="--d:0.17s" aria-label="Copy email address">[copy]</button>
+    <a class="c-row" id="c-li" href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener" style="--d:0.25s"><span class="ci">in</span> linkedin.com/in/paullewispgh</a>
+    <a class="c-row" id="c-gh" href="https://github.com/paullewis2013" target="_blank" rel="noopener" style="--d:0.33s"><span class="ci">gh</span> github.com/paullewis2013</a>
   </div>
 
   <canvas id="glcanvas"></canvas>
   <div id="controls">
-    <span id="cycleBar" style="font-family:Consolas,monospace;font-size:11px;letter-spacing:0.12em;color:#888;user-select:none"></span>
-    <button id="phosphorBtn">Phosphor: Off</button>
+    <span id="fontBar" title="Drag to change character size"></span>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
 
@@ -605,42 +201,63 @@
   <script>
   (() => {
     'use strict';
-    // ── Domain dot cycling ───────────────────────────────────────────────────
-    const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
-    const dotInners = document.querySelectorAll('.dot-inner');
-    let dotIdx = 0;
-    setInterval(() => {
-      dotIdx = (dotIdx + 1) % DOT_CHARS.length;
-      dotInners.forEach(el => el.textContent = DOT_CHARS[dotIdx]);
-    }, 80);
-
-    if (document.documentElement.classList.contains('is-mobile')) return;
 
     // ── Sizing ───────────────────────────────────────────────────────────────
-    let fontSize = (window.innerWidth < 700 || window.innerHeight > window.innerWidth) ? 7 : 10;
+    // Smaller screens get a slightly larger base font → fewer cells → smooth
+    // animation on phones instead of the old static fallback page.
+    const smallScreen = () => window.innerWidth < 700;
+    // Touch-target sizing keys off pointer type, not width — a phone in
+    // landscape is 800+px wide but still needs finger-sized targets.
+    const coarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
+    const baseFontSize = () => (smallScreen() ? 9 : 10);
+
+    // Cap the canvas backing store (~9 MP) and the pixel ratio: crisp text
+    // without letting a 4K/retina display quadruple the per-frame fill cost.
+    const dpr = () => {
+      const raw       = Math.min(window.devicePixelRatio || 1, smallScreen() ? 1.5 : 2);
+      const maxByArea = Math.sqrt(9e6 / (window.innerWidth * window.innerHeight));
+      return Math.max(1, Math.min(raw, maxByArea));
+    };
+
+    // Hard ceiling on cell count — the per-frame sprite-blit budget. On very
+    // large windows the effective font size is raised until the grid fits.
+    const MAX_CELLS = 33000;
+
+    let fontSize = baseFontSize();
     let cols, rows;
 
-    function charGrid() {
-      return {
-        cols: Math.floor(window.innerWidth  / (fontSize * 0.6)),
-        rows: Math.floor(window.innerHeight / (fontSize * 1.15)),
-      };
+    function charGrid(px) {
+      let c, r;
+      for (;;) {
+        c = Math.max(20, Math.floor(window.innerWidth  / (px * 0.6)));
+        r = Math.max(12, Math.floor(window.innerHeight / (px * 1.15)));
+        if (c * r <= MAX_CELLS) break;
+        px++;
+      }
+      return { cols: c, rows: r, px };
     }
 
-    const stage = document.getElementById('stage');
+    // ── Canvases ─────────────────────────────────────────────────────────────
+    const asciiCanvas = document.getElementById('ascii');
+    const asciiCtx    = asciiCanvas.getContext('2d');
+    const glCanvas    = document.getElementById('glcanvas');
 
-    function fitStage() {
-      const charCssW = window.innerWidth  / cols;
-      const charCssH = window.innerHeight / rows;
-      stage.style.letterSpacing = (charCssW - fontSize * 0.6) + 'px';
-      stage.style.lineHeight    = charCssH + 'px';
+    function sizeAsciiCanvas() {
+      const r = dpr();
+      asciiCanvas.width  = Math.round(window.innerWidth  * r);
+      asciiCanvas.height = Math.round(window.innerHeight * r);
     }
 
     // ── Three.js ─────────────────────────────────────────────────────────────
-    const glCanvas = document.getElementById('glcanvas');
     const scene    = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    // The WebGL scene only ever gets sampled down to the character grid, so
+    // render it at 2× grid resolution instead of full window resolution.
+    // This is the single biggest performance win vs the old version.
+    function sizeRenderer() {
+      renderer.setSize(cols * 2, rows * 2, false);
+    }
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.rotation.order = 'YXZ';
@@ -657,13 +274,13 @@
 
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
-      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], petals = [], raindrops = [], gustPetals = [], mistPatches = [];
+      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], raindrops = [], gustPetals = [], mistPatches = [];
       let sandMesh = null;
-      const FISH_COUNT = 12;
+      const FISH_COUNT   = 12;
       const RIPPLE_COUNT = 80;
-      const RAIN_COUNT  = 90;
+      const RAIN_COUNT   = 90;
       let rainActive = false;
-      let mistActive  = false;
+      let mistActive = false;
       const ringGeo   = new THREE.RingGeometry(1, 1.2, 38);
       const shadowGeo = new THREE.CircleGeometry(1, 20);
       const rainGeo   = new THREE.BoxGeometry(0.07, 3.2, 0.07);
@@ -726,7 +343,19 @@
           group.add(eye);
         });
 
-        return { group, tailPivot, bodyMat, darkMat };
+        return { group, tailPivot };
+      }
+
+      function spawnRipple(x, z, startScale, maxLifeBase, maxScale = 9, lifeJitter = 60) {
+        const r = ripples.find(r => !r.active);
+        if (!r) return;
+        r.active = true; r.life = 0;
+        r.maxLife    = maxLifeBase + Math.random() * lifeJitter;
+        r.startScale = startScale;
+        r.maxScale   = maxScale;
+        r.mesh.position.set(x, 0.25, z);
+        r.mesh.scale.setScalar(startScale);
+        r.mat.opacity = 0.85;
       }
 
       return {
@@ -789,9 +418,7 @@
 
               // Hue shifts slightly across the surface (yellow-green ↔ blue-green)
               const hue = 0.29 + t * 0.08;
-              // Saturation: lower in bleached patches, higher in rich green zones
               const sat = 0.35 + t * 0.35;
-              // Lightness: radial falloff + noise bump; edge is darker, highlights near centre
               const lum = 0.07 + (1 - Math.pow(dist, 1.2)) * 0.12 + t * 0.09;
 
               const c = new THREE.Color().setHSL(hue, sat, lum);
@@ -818,9 +445,7 @@
               const reach  = r * (0.78 + Math.random() * 0.18);
               const ex     = Math.cos(angle) * reach;
               const ey     = Math.sin(angle) * reach;
-              // Primary vein
               veinPositions.push(0, 0, 0, ex, ey, 0);
-              // Two short secondary branches per primary
               for (const side of [-1, 1]) {
                 const t      = 0.45 + Math.random() * 0.25; // branch point along primary
                 const bx     = ex * t, by = ey * t;
@@ -875,7 +500,7 @@
           }
 
           for (let i = 0; i < FISH_COUNT; i++) {
-            const { group, tailPivot, bodyMat, darkMat } = buildKoi(i);
+            const { group, tailPivot } = buildKoi(i);
 
             // Shadow ellipse on pond floor.
             // Use a Group for heading so rotation.x = -PI/2 on the mesh
@@ -893,7 +518,7 @@
             scene.add(shadowGroup);
 
             const fish = {
-              group, tailPivot, bodyMat, darkMat, shadowGroup,
+              group, tailPivot, shadowGroup,
               pos: new THREE.Vector3(
                 (Math.random() - 0.5) * 70,
                 0,
@@ -904,15 +529,13 @@
                 0,
                 (Math.random() - 0.5) * 0.08
               ),
-              phase:      Math.random() * Math.PI * 2,
-              noiseOff:   i * 8.31,
-              palIdx:     i % KOI.length,
+              phase:    Math.random() * Math.PI * 2,
+              noiseOff: i * 8.31,
             };
             fishes.push(fish);
             objects.push(group);
             scene.add(group);
           }
-
 
           // Rain pool — pre-allocated, hidden until toggled on
           for (let i = 0; i < RAIN_COUNT; i++) {
@@ -929,6 +552,7 @@
             objects.push(mesh);
             scene.add(mesh);
           }
+
           // Mist patches — soft radial blobs drifting near the pond edges
           // Shared canvas texture: white centre fading to transparent at edges
           const mistCanvas = document.createElement('canvas');
@@ -970,28 +594,12 @@
           const SPEED = 0.072;
           const BX = 42, BZ = 34;
 
-          // Spawn ripples
-          function spawnRipple(x, z, startScale, maxLifeBase, maxScale = 9, lifeJitter = 60) {
-            const r = ripples.find(r => !r.active);
-            if (!r) return;
-            r.active = true; r.life = 0;
-            r.maxLife    = maxLifeBase + Math.random() * lifeJitter;
-            r.startScale = startScale;
-            r.maxScale   = maxScale;
-            r.mesh.position.set(x, 0.25, z);
-            r.mesh.scale.setScalar(startScale);
-            r.mat.opacity = 0.85;
-          }
-          function spawnRippleSet(x, z) {
-            spawnRipple(x, z, 0.1, 140, 9);   // inner ring
-            spawnRipple(x, z, 1.0, 110, 9);   // outer ring
-          }
           // Suppress large fish ripples while it's raining
           if (!rainActive && f % 55 === 0) {
             const fish = fishes[Math.floor(Math.random() * fishes.length)];
-            spawnRippleSet(fish.pos.x + (Math.random()-0.5)*3, fish.pos.z + (Math.random()-0.5)*3);
+            spawnRipple(fish.pos.x + (Math.random()-0.5)*3, fish.pos.z + (Math.random()-0.5)*3, 0.1, 140, 9);
           }
-          if (!rainActive && f % 120 === 0) spawnRippleSet((Math.random()-0.5)*60, (Math.random()-0.5)*44);
+          if (!rainActive && f % 120 === 0) spawnRipple((Math.random()-0.5)*60, (Math.random()-0.5)*44, 0.1, 140, 9);
 
           // Animate ripples — opacity fade so they dissolve smoothly
           ripples.forEach(r => {
@@ -1102,8 +710,6 @@
             }
           });
 
-
-
           // Gust petals — fast wind burst, fade out over lifetime
           for (let gi = gustPetals.length - 1; gi >= 0; gi--) {
             const p = gustPetals[gi];
@@ -1143,7 +749,7 @@
           // Sand drift — translate the whole plane slowly through noise
           {
             const st = f * 0.007;
-            sandMesh.position.x = noise.simplex2(st, 0)      * 10;
+            sandMesh.position.x = noise.simplex2(st, 0)        * 10;
             sandMesh.position.z = noise.simplex2(0,  st * 0.7) * 8;
           }
 
@@ -1180,6 +786,15 @@
         setRain(on) { rainActive = on; },
         setMist(on) { mistActive = on; },
 
+        // A burst of ripples near the centre — used when the contact block opens
+        splash(count = 3) {
+          for (let i = 0; i < count; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const r = 4 + Math.random() * 12;
+            spawnRipple(Math.cos(a) * r, Math.sin(a) * r, 0.1, 110 + Math.random() * 50, 7);
+          }
+        },
+
         spawnGust() {
           const count = 65 + Math.floor(Math.random() * 25);
           // Wind blows roughly left-to-right with a slight Z spread
@@ -1214,301 +829,426 @@
           }
         },
 
-        getActiveRipples() {
-          return ripples
-            .filter(r => r.active && r.life > 0)
-            .map(r => ({
-              x: r.mesh.position.x, z: r.mesh.position.z,
-              scale: r.mesh.scale.x,
-              life: r.life, maxLife: r.maxLife,
-            }));
-        },
-
         dispose() {
           rainActive = false; sandMesh = null;
           clearScene(objects);
           for (const p of gustPetals) scene.remove(p.group);
-          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; petals.length = 0; raindrops.length = 0; gustPetals.length = 0; mistPatches.length = 0;
+          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; raindrops.length = 0; gustPetals.length = 0; mistPatches.length = 0;
         },
-
       };
     })();
 
     FISH.init();
 
-    // Cinematic intro — camera starts at water level and pulls up
-    const INTRO_FRAMES = 300; // ~5s at 60fps
+    // ── Cinematic intro — camera starts at water level and pulls up ─────────
+    const INTRO_FRAMES = 300; // ~5s of sim time
     const CAM_START = { x: 0, y: 3,  z: 36 };
-    const CAM_END   = { x: 0, y: 58, z: 22 };
     const LUT_START = { x: 0, y: 0,  z: 8  }; // lookAt target at start
     const LUT_END   = { x: 0, y: 0,  z: 0  };
     const LUM_START = 0.15;
     const LUM_END   = 1.4;
-    const isMobile = window.innerWidth < 700 || window.innerHeight > window.innerWidth;
 
     // Portrait needs a more overhead camera — (0,58,22) was tuned for landscape
-    function mobileCamPosition() {
+    function camEndPosition() {
       const portrait = window.innerHeight > window.innerWidth;
       return portrait
         ? { x: 0, y: 72, z: 10 }   // nearly top-down for portrait
         : { x: 0, y: 58, z: 22 };  // standard landscape end position
     }
 
-    if (!isMobile) {
-      camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
-      camera.lookAt(LUT_START.x, LUT_START.y, LUT_START.z);
-    } else {
-      const p = mobileCamPosition();
-      camera.position.set(p.x, p.y, p.z);
-      camera.lookAt(0, 0, 0);
-    }
+    camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
+    camera.lookAt(LUT_START.x, LUT_START.y, LUT_START.z);
 
-    // Contact drawer
-    const drawer   = document.getElementById('contact-drawer');
-    const backdrop = document.getElementById('contact-backdrop');
-    const titleEl  = document.getElementById('title');
-    const hintEl   = document.getElementById('contact-hint');
-    let drawerOpen = false;
-    function openDrawer()  {
-      drawer.classList.add('open'); backdrop.classList.add('open'); drawerOpen = true;
-      if (hintEl) hintEl.style.opacity = '0';
-    }
-    function closeDrawer() {
-      drawer.classList.remove('open'); backdrop.classList.remove('open'); drawerOpen = false;
-      if (hintEl) hintEl.style.opacity = '';
-    }
-    titleEl.addEventListener('click', openDrawer);
-    if (hintEl) hintEl.addEventListener('click', openDrawer);
-    backdrop.addEventListener('click', closeDrawer);
-    drawer.querySelector('.close-btn').addEventListener('click', closeDrawer);
+    // ── Contact — expands inline under the title (no modal) ─────────────────
+    // The waves and role line are stamped into the grid; the link rows are
+    // real HTML text sized to the grid so they can be selected, copied, and
+    // right-clicked like normal links.
+    const titleHit  = document.getElementById('title-hit');
+    const hintHit   = document.getElementById('hint-hit');
+    const navHit    = document.getElementById('nav-hit');
+    const ctlHit    = document.getElementById('ctl-hit');
+    const cLinksEl  = document.getElementById('contact-links');
+    const cMail     = document.getElementById('c-mail');
+    const cCopy     = document.getElementById('c-copy');
+    const cLi       = document.getElementById('c-li');
+    const cGh       = document.getElementById('c-gh');
 
-    const phosphorBtn = document.getElementById('phosphorBtn');
-    phosphorBtn.addEventListener('click', () => {
-      const on = pt.phosphorDecay === 0;
-      pt.phosphorDecay = on ? 0.03 : 0;
-      phosphorBtn.textContent = on ? 'Phosphor: On' : 'Phosphor: Off';
-      phosphorBtn.style.background = on ? '#fff8e8' : '';
+    let contactOpen     = false;
+    let contactOpenedAt = 0; // frameNum when opened, for the stamped rows' stagger
+
+    function openContact() {
+      if (contactOpen) return;
+      contactOpen = true;
+      // Skip the stagger if the sim is paused — rows must appear immediately
+      contactOpenedAt = running ? frameNum : frameNum - 999;
+      FISH.splash(3);
+      positionHits();
+      cLinksEl.hidden = false;
+      requestAnimationFrame(() => cLinksEl.classList.add('open')); // let transition run
+      titleHit.setAttribute('aria-expanded', 'true');
+      hintHit.setAttribute('aria-expanded', 'true');
+      cMail.focus({ preventScroll: true });
+      if (!running) renderFrame();
+    }
+    function closeContact() {
+      if (!contactOpen) return;
+      contactOpen = false;
+      cLinksEl.classList.remove('open');
+      cLinksEl.hidden = true;
+      positionHits();
+      titleHit.setAttribute('aria-expanded', 'false');
+      hintHit.setAttribute('aria-expanded', 'false');
+      hintHit.focus({ preventScroll: true });
+      if (!running) renderFrame();
+    }
+    titleHit.addEventListener('click', () => contactOpen ? closeContact() : openContact());
+    hintHit.addEventListener('click', openContact);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && contactOpen) closeContact(); });
+
+    // Click-away closes — but never on clicks inside the contact area or the
+    // stamped UI, and never while the user has text selected (so selecting
+    // the email with the mouse can't accidentally dismiss the block).
+    document.addEventListener('click', e => {
+      if (!contactOpen) return;
+      const t = e.target;
+      if (t && t.closest && t.closest('#contact-links, .hit')) return;
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0) return;
+      closeContact();
     });
 
-    // ── Pretext ──────────────────────────────────────────────────────────────
-    ({ cols, rows } = charGrid());
-    const asciiCanvas = document.getElementById('asciicanvas');
-    asciiCanvas.width  = window.innerWidth;
-    asciiCanvas.height = window.innerHeight;
-
-    const CANVAS_THRESHOLD = 10000; // cells above this → canvas path
-    let useCanvasMode = cols * rows > CANVAS_THRESHOLD;
-
-    function applyMode() {
-      useCanvasMode = cols * rows > CANVAS_THRESHOLD;
-      stage.style.display       = useCanvasMode ? 'none' : '';
-      asciiCanvas.style.display = useCanvasMode ? 'block' : 'none';
+    // Copy-to-clipboard with a brief confirmation state
+    {
+      let resetTimer = null;
+      cCopy.addEventListener('click', async () => {
+        const text = 'contact@paullew.is';
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          // Fallback for contexts without the async clipboard API
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch {}
+          ta.remove();
+        }
+        cCopy.textContent = '[copied]';
+        cCopy.classList.add('done');
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          cCopy.textContent = '[copy]';
+          cCopy.classList.remove('done');
+        }, 1400);
+      });
     }
-    applyMode();
+
+    // Hover/focus feedback for the stamped UI (read by stampUI each frame);
+    // the HTML contact rows use plain CSS :hover instead.
+    const hover = { title: false, hint: false, nav: false, ctl: false };
+    for (const [el, key] of [[titleHit, 'title'], [hintHit, 'hint'], [navHit, 'nav'], [ctlHit, 'ctl']]) {
+      const on  = () => { hover[key] = true;  if (!running) renderFrame(); };
+      const off = () => { hover[key] = false; if (!running) renderFrame(); };
+      el.addEventListener('mouseenter', on);
+      el.addEventListener('mouseleave', off);
+      el.addEventListener('focus',      on);
+      el.addEventListener('blur',       off);
+    }
+
+    // ── Pretext ──────────────────────────────────────────────────────────────
+    ({ cols, rows, px: fontSize } = charGrid(fontSize));
+    sizeAsciiCanvas();
+    sizeRenderer();
 
     const pt = new Pretext({
       cols, rows,
       chars: ' .·',
-      color: true,
       satBoost: 0,
       lumBoost: LUM_START,
-      font: `${fontSize}px Consolas, monospace`,
+      font: `${Math.round(fontSize * dpr())}px Consolas, Menlo, monospace`,
       fontSize,
       bg: '#071c1a',
-      phosphorDecay: 0,
-      phosphorColor: [255, 176, 0],
     });
-    fitStage();
+
+    function setFontSize(px) {
+      ({ cols, rows, px } = charGrid(px)); // may raise px to respect MAX_CELLS
+      fontSize    = px;
+      pt.font     = `${Math.round(px * dpr())}px Consolas, Menlo, monospace`;
+      pt.fontSize = px;
+      pt.resize(cols, rows);
+      sizeRenderer();
+      positionHits();
+    }
 
     window.addEventListener('resize', () => {
-      fontSize = (window.innerWidth < 700 || window.innerHeight > window.innerWidth) ? 7 : 10;
-      pt.font     = `${fontSize}px Consolas, monospace`;
-      pt.fontSize = fontSize;
-      ({ cols, rows } = charGrid());
-      pt.resize(cols, rows);
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      const [lo, hi] = fontRange();
+      setFontSize(Math.max(lo, Math.min(hi, fontSize)));
+      updateFontBar();
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      asciiCanvas.width  = window.innerWidth;
-      asciiCanvas.height = window.innerHeight;
-      fitStage();
-      applyMode();
-      // Re-frame camera when orientation changes on mobile / after intro
-      if (isMobile || frameNum > INTRO_FRAMES) {
-        const p = mobileCamPosition();
+      sizeAsciiCanvas();
+      // Re-frame camera when orientation changes / after intro
+      if (frameNum > INTRO_FRAMES) {
+        const p = camEndPosition();
         camera.position.set(p.x, p.y, p.z);
         camera.lookAt(0, 0, 0);
       }
+      renderFrame(); // repaint immediately, even while paused
     });
 
+    // ── Stamped UI — title, hint, nav, and [?] drawn into the character grid ─
+    // Rendered with the same font on the same cell grid as the water, so the
+    // page text is literally part of the ASCII scene. Cells under a glyph are
+    // cleared to the current background; spaces let the water show through.
+    const TITLE_ART = [
+      "                    _ _               _",
+      "  _ __   __ _ _   _| | | _____      _(_)___",
+      " | '_ \\ / _` | | | | | |/ _ \\ \\ /\\ / / / __|",
+      " | |_) | (_| | |_| | | |  __/\\ V  V /| \\__ \\",
+      " | .__/ \\__,_|\\__,_|_|_|\\___| \\_/\\_(_)_|___/",
+      " |_|",
+    ];
+    const TITLE_W   = Math.max(...TITLE_ART.map(l => l.length));
+    const TITLE_H   = TITLE_ART.length;
+    // The animated domain dot is the LAST '(_)' in the art (line 1 happens to
+    // contain the same sequence as part of the letterforms).
+    let DOT_ROW = -1;
+    for (let r = TITLE_ART.length - 1; r >= 0; r--) {
+      if (TITLE_ART[r].includes('(_)')) { DOT_ROW = r; break; }
+    }
+    const DOT_COL   = TITLE_ART[DOT_ROW].lastIndexOf('(_)') + 1;
+    const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
+    const HINT_TEXT = '[ contact ]';
+    const NAV_TEXT  = '/ writing';
 
+    // Contact block — stamped inline where the hint sits when open.
+    // Interactive rows carry a key matching the hover map / hit elements.
+    const CT_WAVE  = '~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~';
+    const CT_ROLE  = 'fullstack engineer · product & design';
+    const CT_LINKS = [
+      { key: 'mail', icon: '@ ', text: 'contact@paullew.is', copy: true },
+      { key: 'li',   icon: 'in', text: 'linkedin.com/in/paullewispgh' },
+      { key: 'gh',   icon: 'gh', text: 'github.com/paullewis2013' },
+    ];
+    const CT_COPY_W = '[copied]'.length;
+    const CT_W = Math.max(
+      CT_WAVE.length, CT_ROLE.length,
+      ...CT_LINKS.map(l => l.icon.length + 1 + l.text.length + (l.copy ? 2 + CT_COPY_W : 0))
+    );
+    const CT_H = CT_LINKS.length + 3; // wave + role + links + wave
+    const HINT_APPEAR = 192; // sim frames (~3.2s), matching the old CSS delays
+    const NAV_APPEAR  = 216; // ~3.6s
 
-    // ── Day / night cycle ────────────────────────────────────────────────────
-    const DAY_CYCLE_FRAMES = 18000; // ~5 min at 60fps
-    const _dayBg    = new THREE.Color(0x071c1a);
-    const _nightBg  = new THREE.Color(0x010806);
-    const _bgScratch = new THREE.Color();
-    let cycleOffset = 0;
-
-    function getDayness() {
-      if (frameNum <= INTRO_FRAMES) return 1;
-      const elapsed = (frameNum - INTRO_FRAMES + cycleOffset) % DAY_CYCLE_FRAMES;
-      return (1 + Math.cos((elapsed / DAY_CYCLE_FRAMES) * Math.PI * 2)) / 2;
+    function uiLayout() {
+      const titleCol = Math.round((cols - TITLE_W) / 2);
+      const titleRow = Math.max(1, Math.round(rows * 0.47 - TITLE_H / 2));
+      return {
+        titleCol, titleRow,
+        hintCol: Math.round((cols - HINT_TEXT.length) / 2),
+        hintRow: titleRow + TITLE_H + 1,
+        ctCol:   Math.round((cols - CT_W) / 2),
+        ctRow:   titleRow + TITLE_H + 1,
+        navCol:  cols - NAV_TEXT.length - 2,
+        navRow:  1,
+        ctlCol:  1,
+        ctlRow:  rows - 2 - (coarsePointer() ? 1 : 0), // clear of the iOS home indicator
+      };
     }
 
-    function applyDayNight(dayness) {
-      if (frameNum <= INTRO_FRAMES) return;
-      pt.lumBoost = 0.28 + dayness * (LUM_END - 0.28);
-      pt.satBoost = 0.5 + dayness * (2.8 - 0.5);
-      _bgScratch.copy(_nightBg).lerp(_dayBg, dayness);
-      pt.bg = `#${_bgScratch.getHexString()}`;
-      if (!useCanvasMode) stage.style.background = pt.bg;
-      renderer.setClearColor(_bgScratch);
-    }
-
-    // ── Fireflies ─────────────────────────────────────────────────────────────
-    const fireflies  = [];
-    const MAX_FLIES  = 14;
-
-    function updateFireflies(dayness, canvas) {
-      const darkness = Math.max(0, 1 - dayness);
-      const target   = darkness > 0.25
-        ? Math.round(((darkness - 0.25) / 0.75) * MAX_FLIES) : 0;
-
-      while (fireflies.length < target) {
-        fireflies.push({
-          col:      Math.random() * pt.cols,
-          row:      pt.rows * 0.15 + Math.random() * pt.rows * 0.55,
-          vCol:     (Math.random() - 0.5) * 0.018,
-          vRow:     (Math.random() - 0.5) * 0.009,
-          phase:    Math.random() * Math.PI * 2,
-          blinkSpd: 0.035 + Math.random() * 0.04,
-          life: 0,  maxLife: 220 + Math.random() * 280,
-        });
-      }
-      if (fireflies.length > target) fireflies.length = target;
-
-      // Canvas mode setup
-      let ctx = null, cellW, cellH;
-      if (canvas) {
-        ctx   = canvas.getContext('2d');
-        cellW = canvas.width  / pt.cols;
-        cellH = canvas.height / pt.rows;
-        ctx.font         = pt.font;
-        ctx.textAlign    = 'center';
-        ctx.textBaseline = 'middle';
-      }
-
-      for (let i = fireflies.length - 1; i >= 0; i--) {
-        const f = fireflies[i];
-        f.life++;
-        f.col += f.vCol;
-        f.row += f.vRow;
-        if (f.col <  0)        f.col += pt.cols;
-        if (f.col >= pt.cols)  f.col -= pt.cols;
-        f.row = Math.max(1, Math.min(pt.rows - 2, f.row));
-        if (f.life >= f.maxLife) { fireflies.splice(i, 1); continue; }
-
-        const lifeA  = Math.sin((f.life / f.maxLife) * Math.PI);
-        const blink  = Math.pow((Math.sin(frameNum * f.blinkSpd + f.phase) + 1) / 2, 2);
-        const bright = lifeA * blink * darkness;
-        if (bright < 0.06) continue;
-
-        const col = Math.floor(f.col);
-        const row = Math.floor(f.row);
-        const r   = Math.round(bright * 180);
-        const g   = Math.round(bright * 255);
-        const b   = Math.round(bright * 80);
-        const ch  = bright > 0.55 ? '*' : '·';
-
-        if (ctx) {
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.fillText(ch, (col + 0.5) * cellW, (row + 0.5) * cellH);
-        } else if (pt._spans) {
-          const span = pt._spans[row * pt.cols + col];
-          if (!span) continue;
-          span.textContent = ch;
-          span.style.color = `rgb(${r},${g},${b})`;
+    // Stamp one block of text; colorFn(charIdx, lineIdx, ch) → fillStyle
+    function stampText(lines, col0, row0, colorFn) {
+      const cellW = asciiCanvas.width  / cols;
+      const cellH = asciiCanvas.height / rows;
+      for (let r = 0; r < lines.length; r++) {
+        const row = row0 + r;
+        if (row < 0 || row >= rows) continue;
+        const line = lines[r];
+        for (let c = 0; c < line.length; c++) {
+          const ch = line[c];
+          if (ch === ' ') continue;
+          const col = col0 + c;
+          if (col < 0 || col >= cols) continue;
+          // Clear the cell so the glyph reads over the water
+          asciiCtx.fillStyle = pt.bg;
+          asciiCtx.fillRect(col * cellW, row * cellH, Math.ceil(cellW), Math.ceil(cellH));
+          asciiCtx.fillStyle = colorFn(c, r, ch);
+          asciiCtx.fillText(ch, (col + 0.5) * cellW, (row + 0.5) * cellH);
         }
       }
     }
 
-    // ── Ripple char distortion ────────────────────────────────────────────────
-    const _rvec      = new THREE.Vector3();
-    const WAVE_CHARS = ['~', '-', '~', '=', '-', '~'];
+    function stampUI() {
+      const L = uiLayout();
+      asciiCtx.font         = pt.font;
+      asciiCtx.textAlign    = 'center';
+      asciiCtx.textBaseline = 'middle';
 
-    function stampRippleChars(activeRipples) {
-      if (!pt._spans) return;
-      const cellW = window.innerWidth  / pt.cols;
-      const cellH = window.innerHeight / pt.rows;
+      // Title — breathing brightness (same 3.8s rhythm as the old CSS glow)
+      const breathe = 0.5 + 0.5 * Math.sin((frameNum / 60 / 3.8) * Math.PI * 2);
+      const titleA  = hover.title ? 1 : 0.6 + breathe * 0.35;
+      const dotA    = 0.5 + 0.5 * Math.sin((frameNum / 60 / 3.8) * Math.PI * 2 + 2.6);
+      const dotCh   = DOT_CHARS[Math.floor(frameNum / 5) % DOT_CHARS.length];
+      const lines   = TITLE_ART.slice();
+      lines[DOT_ROW] = lines[DOT_ROW].slice(0, DOT_COL) + dotCh + lines[DOT_ROW].slice(DOT_COL + 1);
+      stampText(lines, L.titleCol, L.titleRow, (c, r) => {
+        if (r === DOT_ROW && c === DOT_COL)
+          return `rgba(232,144,58,${(0.5 + dotA * 0.5).toFixed(2)})`;
+        if (r === DOT_ROW && (c === DOT_COL - 1 || c === DOT_COL + 1))
+          return 'rgba(232,144,58,0.7)';
+        return `rgba(255,255,255,${titleA.toFixed(2)})`;
+      });
 
-      for (const r of activeRipples) {
-        const progress = r.life / r.maxLife;
-        const alpha    = Math.sin(progress * Math.PI) * 0.75;
-        if (alpha < 0.08 || r.scale < 0.5) continue;
-
-        // Project centre
-        _rvec.set(r.x, 0, r.z).project(camera);
-        const cx = (_rvec.x + 1) / 2 * window.innerWidth  / cellW;
-        const cy = (1 - _rvec.y) / 2 * window.innerHeight / cellH;
-
-        // Project edge to get radius in cols
-        _rvec.set(r.x + r.scale, 0, r.z).project(camera);
-        const ex = (_rvec.x + 1) / 2 * window.innerWidth / cellW;
-        const rCol = Math.abs(ex - cx);
-        if (rCol < 1) continue;
-        const rRow = rCol * (cellW / cellH) * 0.5; // perspective squish
-
-        const steps = Math.round(rCol * Math.PI * 2 * 1.4);
-        const v  = Math.round(alpha * 90 + 25);
-        const color = `rgb(${v},${Math.round(v * 1.5)},${Math.round(v * 1.4)})`;
-
-        for (let s = 0; s < steps; s++) {
-          const angle = (s / steps) * Math.PI * 2;
-          const col   = Math.round(cx + Math.cos(angle) * rCol);
-          const row   = Math.round(cy + Math.sin(angle) * rRow);
-          if (col < 0 || col >= pt.cols || row < 0 || row >= pt.rows) continue;
-          const span = pt._spans[row * pt.cols + col];
-          if (!span) continue;
-          span.textContent = WAVE_CHARS[s % WAVE_CHARS.length];
-          span.style.color  = color;
+      // Contact hint — fades in after the intro settles, replaced by the
+      // expanded block while the contact section is open
+      if (!contactOpen) {
+        const inA = Math.max(0, Math.min(1, (frameNum - HINT_APPEAR) / 48));
+        if (inA > 0) {
+          const a = (inA * (hover.hint ? 0.95 : 0.55)).toFixed(2);
+          stampText([HINT_TEXT], L.hintCol, L.hintRow, () => `rgba(232,144,58,${a})`);
         }
+      } else {
+        stampContact(L);
+      }
+
+      // Nav link and the [?] controls toggle
+      const navA = Math.max(0, Math.min(1, (frameNum - NAV_APPEAR) / 30));
+      if (navA > 0) {
+        stampText([NAV_TEXT], L.navCol, L.navRow, () =>
+          hover.nav ? `rgba(232,144,58,${navA.toFixed(2)})`
+                    : `rgba(255,255,255,${(navA * 0.5).toFixed(2)})`);
+
+        const ctlOn = controlsEl.classList.contains('visible');
+        stampText(['[?]'], L.ctlCol, L.ctlRow, () =>
+          (hover.ctl || ctlOn) ? `rgba(232,144,58,${navA.toFixed(2)})`
+                               : `rgba(255,255,255,${(navA * 0.35).toFixed(2)})`);
       }
     }
 
-    // ── Cycle bar ─────────────────────────────────────────────────────────────
-    const cycleBarEl = document.getElementById('cycleBar');
-    const CYCLE_WIDTH = 10;
-    cycleBarEl.style.cursor = 'pointer';
-    cycleBarEl.title = 'Click to advance time';
-    cycleBarEl.addEventListener('click', () => {
-      cycleOffset = (cycleOffset + DAY_CYCLE_FRAMES / 8) % DAY_CYCLE_FRAMES;
-    });
+    // Contact block chrome: the waves and role line are stamped; the link
+    // rows between them are real HTML text positioned by positionHits().
+    function stampContact(L) {
+      const rowA = i => Math.max(0, Math.min(1, (frameNum - contactOpenedAt - i * 5) / 12));
 
-    function updateCycleBar(dayness) {
-      const pos = Math.round((1 - dayness) * (CYCLE_WIDTH - 1));
+      const waveA = rowA(0);
+      if (waveA > 0)
+        stampText([CT_WAVE], Math.round((cols - CT_WAVE.length) / 2), L.ctRow,
+          () => `rgba(45,184,122,${(waveA * 0.45).toFixed(2)})`);
+
+      const roleA = rowA(1);
+      if (roleA > 0)
+        stampText([CT_ROLE], Math.round((cols - CT_ROLE.length) / 2), L.ctRow + 1,
+          () => `rgba(255,255,255,${(roleA * 0.45).toFixed(2)})`);
+
+      const wave2A = rowA(2 + CT_LINKS.length);
+      if (wave2A > 0)
+        stampText([CT_WAVE], Math.round((cols - CT_WAVE.length) / 2), L.ctRow + 2 + CT_LINKS.length,
+          () => `rgba(45,184,122,${(wave2A * 0.45).toFixed(2)})`);
+    }
+
+    // Place the transparent interactive elements over the stamped cells
+    function positionHits() {
+      const cw = window.innerWidth  / cols;
+      const chp = window.innerHeight / rows;
+      const L  = uiLayout();
+      const place = (el, col, row, wCols, hRows, pad) => {
+        el.style.left   = (col * cw - pad) + 'px';
+        el.style.top    = (row * chp - pad) + 'px';
+        el.style.width  = (wCols * cw + pad * 2) + 'px';
+        el.style.height = (hRows * chp + pad * 2) + 'px';
+      };
+      const pad = coarsePointer() ? 16 : 10; // ≥44px touch targets on touch devices
+      place(titleHit, L.titleCol, L.titleRow, TITLE_W, TITLE_H, 2);
+      place(hintHit,  L.hintCol,  L.hintRow,  HINT_TEXT.length, 1, pad);
+      place(navHit,   L.navCol,   L.navRow,   NAV_TEXT.length,  1, pad);
+      place(ctlHit,   L.ctlCol,   L.ctlRow,   3,                1, pad);
+
+      // Contact link rows: real HTML text laid onto the grid. Font size and
+      // line height come from the live cell metrics so the rows render at
+      // exactly the same scale as the stamped characters around them.
+      hintHit.style.display = contactOpen ? 'none' : '';
+      if (contactOpen) {
+        cLinksEl.style.fontSize   = fontSize + 'px';
+        const rowY = i => (L.ctRow + 2 + i) * chp; // first link row is 2 below the top wave
+        const placeRow = (el, i, col) => {
+          el.style.left       = (col * cw) + 'px';
+          el.style.top        = rowY(i) + 'px';
+          el.style.lineHeight = chp + 'px';
+          el.style.height     = chp + 'px';
+        };
+        placeRow(cMail, 0, L.ctCol);
+        placeRow(cCopy, 0, L.ctCol + CT_W - '[copied]'.length);
+        placeRow(cLi,   1, L.ctCol);
+        placeRow(cGh,   2, L.ctCol);
+      }
+    }
+
+    // ── Font size control — dotted-track scrubber ───────────────────────────
+    const fontBarEl  = document.getElementById('fontBar');
+    const FONT_TRACK = 11;
+    function fontRange() {
+      let [lo, hi] = smallScreen() ? [8, 13] : [6, 16];
+      // Never allow a size where the stamped title would clip horizontally
+      const fitPx = Math.floor(window.innerWidth / ((TITLE_W + 2) * 0.6));
+      hi = Math.max(lo, Math.min(hi, fitPx));
+      return [lo, hi];
+    }
+
+    function updateFontBar() {
+      const [lo, hi] = fontRange();
+      const pos = Math.max(0, Math.min(FONT_TRACK - 1,
+        Math.round((fontSize - lo) / (hi - lo) * (FONT_TRACK - 1))));
       let bar = '';
-      for (let i = 0; i < CYCLE_WIDTH; i++) bar += i === pos ? '●' : '·';
-      cycleBarEl.textContent = `☀ ${bar} ☾`;
+      for (let i = 0; i < FONT_TRACK; i++) bar += i === pos ? '●' : '·';
+      fontBarEl.textContent = `a ${bar} A`;
     }
+
+    function setFontFromPointer(e) {
+      const rect = fontBarEl.getBoundingClientRect();
+      // Element renders `a <track> A` — map the pointer onto the dot track,
+      // treating the 2-char labels at each end as clamped extremes.
+      const charIdx = (e.clientX - rect.left) / rect.width * (FONT_TRACK + 4);
+      const t = Math.max(0, Math.min(1, (charIdx - 2) / (FONT_TRACK - 1)));
+      const [lo, hi] = fontRange();
+      const px = Math.round(lo + t * (hi - lo));
+      if (px !== fontSize) {
+        setFontSize(px);
+        renderFrame(); // repaint immediately, even while paused
+      }
+      updateFontBar();
+    }
+    let fontDragging = false;
+    fontBarEl.addEventListener('pointerdown', e => {
+      fontDragging = true;
+      fontBarEl.setPointerCapture(e.pointerId);
+      setFontFromPointer(e);
+    });
+    fontBarEl.addEventListener('pointermove', e => { if (fontDragging) setFontFromPointer(e); });
+    fontBarEl.addEventListener('pointerup',   () => fontDragging = false);
+    fontBarEl.addEventListener('pointercancel', () => fontDragging = false);
 
     // ── Pause ────────────────────────────────────────────────────────────────
     let running = true;
     const pauseBtn = document.getElementById('pauseBtn');
-    pauseBtn.addEventListener('click', () => {
-      running = !running;
-      pauseBtn.textContent = running ? '⏸ Pause' : '▶ Play';
-      if (running) loop();
-    });
+    function setRunning(on) {
+      running = on;
+      pauseBtn.textContent = on ? '⏸ Pause' : '▶ Play';
+      if (on) { lastTime = performance.now(); accumulator = 0; requestAnimationFrame(loop); }
+    }
+    pauseBtn.addEventListener('click', () => setRunning(!running));
 
-    // ── Controls toggle (?) ──────────────────────────────────────────────────
+    // ── Controls toggle — '?' key or the stamped [?] corner button ──────────
     const controlsEl = document.getElementById('controls');
+    function toggleControls() {
+      controlsEl.classList.toggle('visible');
+      if (!running) renderFrame(); // re-stamp [?] highlight while paused
+    }
     document.addEventListener('keydown', e => {
-      if (e.key === '?' && !drawerOpen) controlsEl.classList.toggle('visible');
+      if (e.key === '?' && !contactOpen) toggleControls();
     });
+    ctlHit.addEventListener('click', toggleControls);
 
-    // ── Animate ──────────────────────────────────────────────────────────────
-    let frameNum = 0;
     // ── Weather state machine ────────────────────────────────────────────────
     // Only one effect active at a time: rain | mist | petals | clear
     let wxState = 'clear';
@@ -1540,35 +1280,17 @@
         }
       }
     }
-    // ── Font size drift ──────────────────────────────────────────────────────
-    let currentFontSize = fontSize;
-    let fontSizeTarget  = fontSize;
-    let fontSizeTimer   = 600;
-    let lastFontPx      = fontSize;
 
-    function tickFontSize() {
-      if (--fontSizeTimer <= 0) {
-        fontSizeTarget = 6 + Math.random() * 10; // 6–16px
-        fontSizeTimer  = 600 + Math.floor(Math.random() * 600); // ~10–20s
-      }
-      currentFontSize += (fontSizeTarget - currentFontSize) * 0.018;
-      const px = Math.round(currentFontSize);
-      if (px !== lastFontPx) {
-        fontSize    = px;
-        pt.font     = `${px}px Consolas, monospace`;
-        pt.fontSize = px;
-        ({ cols, rows } = charGrid());
-        pt.resize(cols, rows);
-        fitStage();
-        lastFontPx = px;
-      }
-    }
+    // ── Main loop: fixed 60Hz simulation, render on rAF ──────────────────────
+    // Decoupling the sim from the display refresh keeps the pond running at
+    // the same speed on 60/120/144Hz monitors and smooths out frame jitter.
+    const loader   = document.getElementById('loader');
+    const SIM_STEP = 1000 / 60;
+    let frameNum    = 0;
+    let lastTime    = performance.now();
+    let accumulator = 0;
 
-    const loader = document.getElementById('loader');
-
-    function loop() {
-      if (!running) return;
-      requestAnimationFrame(loop);
+    function simTick() {
       frameNum++;
       if (frameNum === 2) {
         loader.classList.add('fade-out');
@@ -1576,20 +1298,19 @@
       }
       // Intro camera pull-up + lum reveal
       if (frameNum <= INTRO_FRAMES) {
-        const t  = frameNum / INTRO_FRAMES;
-        const e  = 1 - Math.pow(1 - t, 3); // ease-out cubic
-        if (!isMobile) {
-          camera.position.set(
-            CAM_START.x + (CAM_END.x - CAM_START.x) * e,
-            CAM_START.y + (CAM_END.y - CAM_START.y) * e,
-            CAM_START.z + (CAM_END.z - CAM_START.z) * e,
-          );
-          camera.lookAt(
-            LUT_START.x + (LUT_END.x - LUT_START.x) * e,
-            LUT_START.y + (LUT_END.y - LUT_START.y) * e,
-            LUT_START.z + (LUT_END.z - LUT_START.z) * e,
-          );
-        }
+        const t = frameNum / INTRO_FRAMES;
+        const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        const CAM_END = camEndPosition();
+        camera.position.set(
+          CAM_START.x + (CAM_END.x - CAM_START.x) * e,
+          CAM_START.y + (CAM_END.y - CAM_START.y) * e,
+          CAM_START.z + (CAM_END.z - CAM_START.z) * e,
+        );
+        camera.lookAt(
+          LUT_START.x + (LUT_END.x - LUT_START.x) * e,
+          LUT_START.y + (LUT_END.y - LUT_START.y) * e,
+          LUT_START.z + (LUT_END.z - LUT_START.z) * e,
+        );
         pt.lumBoost = LUM_START + (LUM_END - LUM_START) * e;
         pt.satBoost = 2.8 * e;
         const fullChars = Array.from(Pretext.CHARS_WILD);
@@ -1598,25 +1319,52 @@
       }
 
       tickWeather();
-      tickFontSize();
-
-      const dayness = getDayness();
-      applyDayNight(dayness);
-      if (frameNum % 6 === 0) updateCycleBar(dayness);
       FISH.update(frameNum);
-      renderer.render(scene, camera);
-      const src = renderer.domElement;
-      if (useCanvasMode) {
-        pt.frame(src, asciiCanvas);
-        updateFireflies(dayness, asciiCanvas);
-      } else {
-        pt.framePre(src, stage);
-        stampRippleChars(FISH.getActiveRipples());
-        updateFireflies(dayness, null);
-      }
     }
 
-    loop();
+    function renderFrame() {
+      renderer.render(scene, camera);
+      pt.frame(renderer.domElement, asciiCanvas);
+      stampUI();
+    }
+
+    function loop(now) {
+      if (!running) return;
+      requestAnimationFrame(loop);
+      let dt = now - lastTime;
+      lastTime = now;
+      if (dt > 250) dt = 250; // tab was hidden or a long hitch — don't fast-forward
+      accumulator += dt;
+      let stepped = false;
+      while (accumulator >= SIM_STEP) {
+        simTick();
+        accumulator -= SIM_STEP;
+        stepped = true;
+      }
+      if (stepped) renderFrame();
+    }
+
+    positionHits();
+    updateFontBar();
+
+    // Respect reduced-motion: draw one settled frame and start paused.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      frameNum   = INTRO_FRAMES;
+      pt.lumBoost = LUM_END;
+      pt.satBoost = 2.8;
+      pt.chars    = Array.from(Pretext.CHARS_WILD);
+      const p = camEndPosition();
+      camera.position.set(p.x, p.y, p.z);
+      camera.lookAt(0, 0, 0);
+      simTick();
+      renderFrame();
+      loader.remove();
+      running = false;
+      pauseBtn.textContent = '▶ Play';
+      controlsEl.classList.add('visible');
+    } else {
+      requestAnimationFrame(loop);
+    }
   })();
   </script>
 </body>

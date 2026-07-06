@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <title>writing · paullew.is</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #071c1a;
+      --panel:    #0a211f;
+      --fg:       rgba(255,255,255,0.88);
+      --fg-dim:   rgba(255,255,255,0.45);
+      --fg-faint: rgba(255,255,255,0.22);
+      --accent:        #e8903a;
+      --accent-dim:    rgba(232,144,58,0.55);
+      --accent-border: rgba(232,144,58,0.28);
+      --green:  #2db87a;
+      --rule:   rgba(255,255,255,0.08);
+      --mono:   Consolas, Menlo, 'SF Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .wrap {
+      max-width: 660px;
+      margin: 0 auto;
+      padding: 3.2rem 1.4rem 6rem;
+    }
+
+    /* ── Top-right sections nav (mirrors the home page) ────────────────────── */
+    #sections-nav {
+      position: fixed;
+      top: 1.6rem;
+      right: 1.8rem;
+      z-index: 6;
+      font-size: 10px;
+      letter-spacing: 0.13em;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.55rem;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--fg-faint);
+      cursor: default;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    a.nav-item {
+      color: var(--fg-dim);
+      cursor: pointer;
+      transition: color 0.15s;
+      padding: 0.2rem 0;
+    }
+    a.nav-item:hover { color: var(--accent); }
+    .nav-item .nav-here {
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      color: rgba(45,184,122,0.7);
+      border: 1px solid rgba(45,184,122,0.35);
+      border-radius: 2px;
+      padding: 0 3px;
+      line-height: 1.5;
+    }
+    @media (max-width: 600px) {
+      #sections-nav { top: 1rem; right: 1rem; }
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
+    header { margin-bottom: 2.6rem; }
+
+    .back {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-dim);
+      text-decoration: none;
+      margin-bottom: 2.2rem;
+      padding: 0.2rem 0;
+      transition: color 0.15s;
+    }
+    .back:hover { color: var(--accent); }
+
+    .page-title {
+      font-size: 16px;
+      font-weight: normal;
+      letter-spacing: 0.04em;
+      user-select: none;
+    }
+    .page-title .slash { color: var(--accent); }
+
+    @keyframes dot-breathe {
+      0%, 100% { color: rgba(232,144,58,0.5); text-shadow: 0 0 6px rgba(232,144,58,0.2); }
+      50%       { color: rgba(232,144,58,1);   text-shadow: 0 0 18px rgba(232,144,58,0.8); }
+    }
+    .dot-paren { color: rgba(232,144,58,0.7); }
+    .dot-inner {
+      animation: dot-breathe 3.8s ease-in-out infinite;
+      animation-delay: -1.6s;
+    }
+
+    /* scrolling wave strip — same motif as the home page */
+    .wave-wrap {
+      width: 100%;
+      overflow: hidden;
+      margin-top: 1.1rem;
+      opacity: 0.35;
+      user-select: none;
+    }
+    .wave {
+      white-space: nowrap;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      color: var(--green);
+      width: max-content;
+      animation: wave-scroll 18s linear infinite;
+    }
+    @keyframes wave-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .wave { animation: none; }
+      .dot-inner { animation: none; }
+    }
+
+    /* ── Post list ─────────────────────────────────────────────────────────── */
+    .post-list { list-style: none; }
+    .post-list li { border-bottom: 1px solid var(--rule); }
+    .post-list a {
+      display: block;
+      padding: 1.25rem 0.2rem;
+      text-decoration: none;
+      color: var(--fg);
+      transition: background 0.15s;
+    }
+    .post-list a:hover { background: rgba(232,144,58,0.04); }
+    .post-list a:hover .post-title { color: var(--accent); }
+    .post-title {
+      font-size: 14px;
+      transition: color 0.15s;
+    }
+    .post-title::before { content: '· '; color: var(--accent); }
+    .post-meta {
+      font-size: 11px;
+      color: var(--fg-dim);
+      letter-spacing: 0.06em;
+      margin-top: 0.2rem;
+    }
+    .post-summary {
+      font-size: 12px;
+      color: var(--fg-dim);
+      margin-top: 0.35rem;
+    }
+
+    .empty, .error {
+      color: var(--fg-dim);
+      font-size: 12px;
+      padding: 2rem 0;
+      line-height: 1.9;
+    }
+    .error .hint { color: var(--fg-faint); }
+
+    /* ── Article — framed like the contact drawer ──────────────────────────── */
+    article { display: none; }
+    article.visible { display: block; }
+    .list-view.hidden { display: none; }
+
+    .article-frame {
+      background: var(--panel);
+      border: 1px solid var(--accent-border);
+      border-top: 2px solid var(--accent);
+      padding: 1.6rem 2rem 2.4rem;
+    }
+    @media (max-width: 600px) {
+      .article-frame { padding: 1.3rem 1.2rem 2rem; }
+    }
+
+    .article-top {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.6rem;
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      user-select: none;
+    }
+    .article-top::before,
+    .article-top::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(232,144,58,0.3);
+    }
+
+    .article-date {
+      font-size: 10px;
+      color: var(--green);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 1.4rem;
+    }
+
+    /* ── Rendered markdown ─────────────────────────────────────────────────── */
+    .md h1, .md h2, .md h3, .md h4 {
+      font-weight: normal;
+      letter-spacing: 0.02em;
+      margin: 2.2rem 0 0.9rem;
+      color: rgba(255,255,255,0.95);
+      line-height: 1.4;
+    }
+    .md h1 { font-size: 20px; margin-top: 0; }
+    .md h2 { font-size: 16px; }
+    .md h2::before { content: '## ';  color: var(--accent); opacity: 0.7; }
+    .md h3 { font-size: 14px; }
+    .md h3::before { content: '### '; color: var(--accent); opacity: 0.5; }
+    .md h4 { font-size: 13px; color: var(--fg-dim); }
+
+    .md p  { margin: 0 0 1.2rem; }
+    .md a  {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(232,144,58,0.35);
+      transition: border-color 0.15s;
+    }
+    .md a:hover { border-bottom-color: var(--accent); }
+
+    .md ul, .md ol { margin: 0 0 1.2rem 1.4rem; }
+    .md li { margin-bottom: 0.3rem; }
+    .md ul li::marker { content: '· '; color: var(--accent); }
+    .md ol li::marker { color: var(--accent-dim); }
+
+    .md blockquote {
+      border-left: 2px solid rgba(232,144,58,0.5);
+      padding: 0.2rem 0 0.2rem 1rem;
+      margin: 0 0 1.2rem;
+      color: var(--fg-dim);
+    }
+    .md blockquote p:last-child { margin-bottom: 0; }
+
+    .md code {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--rule);
+      border-radius: 3px;
+      padding: 0.05rem 0.35rem;
+      font-size: 12.5px;
+      font-family: var(--mono);
+    }
+    .md pre {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid var(--rule);
+      border-left: 2px solid rgba(45,184,122,0.5);
+      border-radius: 4px;
+      padding: 1rem 1.2rem;
+      overflow-x: auto;
+      margin: 0 0 1.2rem;
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+    .md pre code { background: none; border: none; padding: 0; }
+
+    .md hr {
+      border: none;
+      height: 1px;
+      background: var(--rule);
+      margin: 2rem 0;
+      overflow: visible;
+      text-align: center;
+    }
+    .md hr::after {
+      content: '~ · ~';
+      position: relative;
+      top: -0.85em;
+      padding: 0 0.8em;
+      background: var(--panel);
+      color: rgba(45,184,122,0.5);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+    }
+
+    .md img {
+      max-width: 100%;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      display: block;
+      margin: 0 0 1.2rem;
+    }
+
+    .md table {
+      border-collapse: collapse;
+      margin: 0 0 1.2rem;
+      font-size: 12.5px;
+      width: 100%;
+    }
+    .md th, .md td { border: 1px solid var(--rule); padding: 0.35rem 0.7rem; text-align: left; }
+    .md th { color: var(--accent); font-weight: normal; letter-spacing: 0.05em; }
+
+    footer {
+      margin-top: 4rem;
+      font-size: 11px;
+      color: var(--fg-faint);
+      letter-spacing: 0.1em;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    footer a { color: var(--fg-dim); text-decoration: none; transition: color 0.15s; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav id="sections-nav" aria-label="Sections">
+    <a class="nav-item" href="../index.html">/ home</a>
+    <div class="nav-item">/ writing <span class="nav-here">here</span></div>
+  </nav>
+
+  <div class="wrap">
+    <header>
+      <a class="back" href="../index.html" id="back-link">&larr; back home</a>
+      <h1 class="page-title"><span class="slash">/</span> writing<span class="dot-paren">(</span><span class="dot-inner">_</span><span class="dot-paren">)</span></h1>
+      <div class="wave-wrap" aria-hidden="true">
+        <!-- doubled so the scroll loop is seamless -->
+        <div class="wave" id="wave"></div>
+      </div>
+    </header>
+
+    <div class="list-view" id="list-view">
+      <ul class="post-list" id="post-list"></ul>
+      <div class="empty" id="empty" hidden>nothing here yet — the koi are still thinking.</div>
+      <div class="error" id="error" hidden></div>
+    </div>
+
+    <article id="article">
+      <div class="article-frame">
+        <div class="article-top">writing</div>
+        <div class="article-date" id="article-date"></div>
+        <div class="md" id="article-body"></div>
+      </div>
+    </article>
+
+    <footer>
+      <span>paullew.is</span>
+      <a href="mailto:contact@paullew.is">contact@paullew.is</a>
+    </footer>
+  </div>
+
+  <!-- Self-contained markdown renderer — no CDN, can't fail closed -->
+  <script src="md.js"></script>
+  <!-- Post manifest as a script so the list renders even over file:// -->
+  <script src="posts.js"></script>
+  <script>
+  (async () => {
+    'use strict';
+
+    // Wave strip + dot cycling — same motifs as the home page
+    const seg = '~\u00a0·\u00a0'.repeat(30);
+    document.getElementById('wave').textContent = seg + seg;
+
+    const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
+    const dotInners = document.querySelectorAll('.dot-inner');
+    let dotIdx = 0;
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setInterval(() => {
+        dotIdx = (dotIdx + 1) % DOT_CHARS.length;
+        dotInners.forEach(el => el.textContent = DOT_CHARS[dotIdx]);
+      }, 80);
+    }
+
+    const listView    = document.getElementById('list-view');
+    const listEl      = document.getElementById('post-list');
+    const emptyEl     = document.getElementById('empty');
+    const errorEl     = document.getElementById('error');
+    const articleEl   = document.getElementById('article');
+    const articleBody = document.getElementById('article-body');
+    const articleDate = document.getElementById('article-date');
+    const backLink    = document.getElementById('back-link');
+
+    function fail(msg) {
+      errorEl.innerHTML = '';
+      const line = document.createElement('div');
+      line.textContent = msg;
+      errorEl.appendChild(line);
+      if (location.protocol === 'file:') {
+        const hint = document.createElement('div');
+        hint.className = 'hint';
+        hint.textContent = '(post files are fetched over http, which browsers block for file:// pages — double-click preview.command in the site folder to preview locally, or view it on paullew.is)';
+        errorEl.appendChild(hint);
+      }
+      errorEl.hidden = false;
+    }
+
+    // Manifest is loaded by <script src="posts.js"> — works over file:// too
+    const posts = Array.isArray(window.BLOG_POSTS) ? window.BLOG_POSTS.slice() : null;
+    if (!posts) {
+      fail('could not load posts.js');
+      return;
+    }
+
+    // Newest first
+    posts.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso + 'T00:00:00');
+      return isNaN(d) ? iso : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    // Build list
+    if (!posts.length) emptyEl.hidden = false;
+    for (const p of posts) {
+      const li = document.createElement('li');
+      const a  = document.createElement('a');
+      a.href = '#/' + encodeURIComponent(p.slug);
+      const t = document.createElement('div');
+      t.className = 'post-title';
+      t.textContent = p.title || p.slug;
+      const m = document.createElement('div');
+      m.className = 'post-meta';
+      m.textContent = fmtDate(p.date);
+      a.appendChild(t);
+      a.appendChild(m);
+      if (p.summary) {
+        const s = document.createElement('div');
+        s.className = 'post-summary';
+        s.textContent = p.summary;
+        a.appendChild(s);
+      }
+      li.appendChild(a);
+      listEl.appendChild(li);
+    }
+
+    async function showPost(slug) {
+      const post = posts.find(p => p.slug === slug);
+      if (!post) { showList(); return; }
+      errorEl.hidden = true;
+      try {
+        const res = await fetch('posts/' + encodeURIComponent(slug) + '.md', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(res.status);
+        const md = await res.text();
+        articleBody.innerHTML = renderMarkdown(md);
+        articleDate.textContent = fmtDate(post.date);
+        document.title = (post.title || slug) + ' · paullew.is';
+        listView.classList.add('hidden');
+        articleEl.classList.add('visible');
+        backLink.textContent = '← all posts';
+        backLink.href = '#';
+        window.scrollTo(0, 0);
+      } catch (e) {
+        fail('could not load post: ' + slug);
+      }
+    }
+
+    function showList() {
+      listView.classList.remove('hidden');
+      articleEl.classList.remove('visible');
+      document.title = 'writing · paullew.is';
+      backLink.textContent = '← back home';
+      backLink.href = '../index.html';
+    }
+
+    function route() {
+      const m = location.hash.match(/^#\/(.+)$/);
+      if (m) showPost(decodeURIComponent(m[1]));
+      else showList();
+    }
+
+    window.addEventListener('hashchange', route);
+    route();
+  })();
+  </script>
+</body>
+</html>
