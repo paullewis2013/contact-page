@@ -5,6 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>paullew.is</title>
+  <meta name="description" content="Paul Lewis — fullstack software engineer. An ASCII koi pond, and occasional writing.">
+  <meta name="theme-color" content="#071c1a">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="paullew.is">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://paullew.is/">
+  <meta property="og:site_name" content="paullew.is">
+  <meta property="og:title" content="paullew.is">
+  <meta property="og:description" content="Paul Lewis — fullstack software engineer. An ASCII koi pond, and occasional writing.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://paullew.is/">
+  <meta property="og:image" content="https://paullew.is/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="paullewis in ASCII art over a dark koi pond">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="paullew.is">
+  <meta name="twitter:description" content="Paul Lewis — fullstack software engineer. An ASCII koi pond, and occasional writing.">
+  <meta name="twitter:image" content="https://paullew.is/og-image.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -165,7 +184,7 @@
 </head>
 <body>
   <div id="loader"></div>
-  <canvas id="ascii"></canvas>
+  <canvas id="ascii" role="img" aria-label="An animated koi pond rendered in ASCII characters: koi drift among lily pads while ripples, rain, mist, and drifting petals pass over the water."></canvas>
   <!-- Interactive layer for the canvas-stamped title / hint / nav -->
   <button class="hit" id="title-hit" aria-label="paullew.is — open contact"></button>
   <button class="hit" id="hint-hit" aria-label="Open contact"></button>
@@ -259,8 +278,31 @@
       renderer.setSize(cols * 2, rows * 2, false);
     }
 
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const isPortrait = () => window.innerHeight > window.innerWidth;
+    // Portrait viewports get a wider FOV — at 45° a phone would only see
+    // ~±14 world units of water horizontally and most of the scene would
+    // play out off-screen.
+    const viewFov = () => (isPortrait() ? 60 : 45);
+
+    const camera = new THREE.PerspectiveCamera(viewFov(), window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.rotation.order = 'YXZ';
+
+    // WORLD — the visible extent of the water at the settled camera, plus a
+    // small margin. Everything that positions itself in the pond (fish
+    // bounds, lily pads, skimmers, rain, mist) scales to these so the whole
+    // scene stays on screen at any aspect ratio.
+    const WORLD = {
+      bx: 42, bz: 34,
+      recompute() {
+        const cam   = isPortrait() ? { y: 72, z: 10 } : { y: 58, z: 22 }; // camEndPosition
+        const dist  = Math.hypot(cam.y, cam.z);
+        const halfV = Math.tan((viewFov() / 2) * Math.PI / 180) * dist;
+        const halfH = halfV * (window.innerWidth / window.innerHeight);
+        this.bx = Math.max(16, halfH * 1.05);
+        this.bz = Math.max(14, halfV * 1.05);
+      },
+    };
+    WORLD.recompute();
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
 
@@ -276,6 +318,17 @@
     const FISH = (() => {
       const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], raindrops = [], gustPetals = [], mistPatches = [];
       let sandMesh = null;
+      let pondMesh = null;
+
+      // The pond floor is authored at radius 55 / sand 110×90; scale both up
+      // whenever the visible diagonal would otherwise reach past the edge
+      // (wide landscape phones, ultrawide monitors).
+      function coverView() {
+        const need = Math.hypot(WORLD.bx, WORLD.bz) * 1.15;
+        const k = Math.max(1, need / 55);
+        if (pondMesh) pondMesh.scale.setScalar(k);
+        if (sandMesh) sandMesh.scale.setScalar(k);
+      }
       const FISH_COUNT   = 12;
       const RIPPLE_COUNT = 80;
       const RAIN_COUNT   = 90;
@@ -365,13 +418,13 @@
           camera.lookAt(0, 0, 0);
 
           // Pond floor
-          const pond = new THREE.Mesh(
+          pondMesh = new THREE.Mesh(
             new THREE.CircleGeometry(55, 48),
             new THREE.MeshBasicMaterial({ color: 0x0c2826 })
           );
-          pond.rotation.x = -Math.PI / 2;
-          pond.position.y = -1.2;
-          objects.push(pond); scene.add(pond);
+          pondMesh.rotation.x = -Math.PI / 2;
+          pondMesh.position.y = -1.2;
+          objects.push(pondMesh); scene.add(pondMesh);
 
           // Sand — noise-driven vertex colours, mesh drifts slowly in update()
           {
@@ -432,8 +485,14 @@
             pad.position.set(x + (Math.random()-0.5)*4, 0.3, z + (Math.random()-0.5)*4);
             pad.noiseOff = padIdx * 5.1 + Math.random() * 100;
             pad.vx = 0; pad.vz = 0;
-            pad.anchorX = pad.position.x;
-            pad.anchorZ = pad.position.z;
+            // Anchor stored normalized to the design-time bounds (42×34) so
+            // relayout() can rescale it to whatever is visible.
+            pad.nx = pad.position.x / 42;
+            pad.nz = pad.position.z / 34;
+            pad.anchorX = pad.nx * WORLD.bx * 0.9;
+            pad.anchorZ = pad.nz * WORLD.bz * 0.9;
+            pad.position.x = pad.anchorX;
+            pad.position.z = pad.anchorZ;
             lilyPads.push(pad);
             objects.push(pad); scene.add(pad);
 
@@ -494,7 +553,7 @@
           for (let i = 0; i < 4; i++) {
             const mat  = new THREE.MeshBasicMaterial({ color: 0x071210 });
             const mesh = new THREE.Mesh(skimGeo, mat);
-            mesh.position.set((Math.random()-0.5)*56, 0.45, (Math.random()-0.5)*40);
+            mesh.position.set((Math.random()-0.5)*WORLD.bx*1.3, 0.45, (Math.random()-0.5)*WORLD.bz*1.2);
             skimmers.push({ mesh, vx: (Math.random()-0.5)*0.3, vz: (Math.random()-0.5)*0.3, noiseOff: Math.random()*100 });
             objects.push(mesh); scene.add(mesh);
           }
@@ -520,9 +579,9 @@
             const fish = {
               group, tailPivot, shadowGroup,
               pos: new THREE.Vector3(
-                (Math.random() - 0.5) * 70,
+                (Math.random() - 0.5) * WORLD.bx * 1.7,
                 0,
-                (Math.random() - 0.5) * 55
+                (Math.random() - 0.5) * WORLD.bz * 1.6
               ),
               vel: new THREE.Vector3(
                 (Math.random() - 0.5) * 0.08,
@@ -531,6 +590,7 @@
               ),
               phase:    Math.random() * Math.PI * 2,
               noiseOff: i * 8.31,
+              burst:    0, // startle energy from taps; decays each frame
             };
             fishes.push(fish);
             objects.push(group);
@@ -544,9 +604,9 @@
             mesh.rotation.x = -0.04;
             mesh.visible = false;
             mesh.position.set(
-              (Math.random() - 0.5) * 100,
+              (Math.random() - 0.5) * WORLD.bx * 2.4,
               Math.random() * 50,
-              (Math.random() - 0.5) * 80
+              (Math.random() - 0.5) * WORLD.bz * 2.4
             );
             raindrops.push({ mesh, speed: 0.55 + Math.random() * 0.35 });
             objects.push(mesh);
@@ -570,8 +630,8 @@
           for (let i = 0; i < 34; i++) {
             const angle       = (i / 34) * Math.PI * 2;
             const r           = 20 + Math.random() * 20;
-            const ax          = Math.cos(angle) * r * 1.3;
-            const az          = Math.sin(angle) * r;
+            const ax          = Math.cos(angle) * r * (WORLD.bx / 42) * 1.3;
+            const az          = Math.sin(angle) * r * (WORLD.bz / 34);
             const size        = 12 + Math.random() * 18;
             const baseOpacity = 0.22 + Math.random() * 0.22;
             const mat = new THREE.MeshBasicMaterial({
@@ -588,18 +648,20 @@
             objects.push(mesh);
             scene.add(mesh);
           }
+
+          coverView();
         },
 
         update(f) {
           const SPEED = 0.072;
-          const BX = 42, BZ = 34;
+          const BX = WORLD.bx, BZ = WORLD.bz;
 
           // Suppress large fish ripples while it's raining
           if (!rainActive && f % 55 === 0) {
             const fish = fishes[Math.floor(Math.random() * fishes.length)];
             spawnRipple(fish.pos.x + (Math.random()-0.5)*3, fish.pos.z + (Math.random()-0.5)*3, 0.1, 140, 9);
           }
-          if (!rainActive && f % 120 === 0) spawnRipple((Math.random()-0.5)*60, (Math.random()-0.5)*44, 0.1, 140, 9);
+          if (!rainActive && f % 120 === 0) spawnRipple((Math.random()-0.5)*WORLD.bx*1.4, (Math.random()-0.5)*WORLD.bz*1.3, 0.1, 140, 9);
 
           // Animate ripples — opacity fade so they dissolve smoothly
           ripples.forEach(r => {
@@ -642,8 +704,8 @@
 
             // Each koi has its own independent lazy wander
             const ft = f * 0.0011 + noiseOff;
-            const tx = noise.simplex3(ft, 0, 0) * 40;
-            const tz = noise.simplex3(0, ft, 0) * 32;
+            const tx = noise.simplex3(ft, 0, 0) * WORLD.bx * 0.95;
+            const tz = noise.simplex3(0, ft, 0) * WORLD.bz * 0.94;
 
             const ddx = tx - pos.x, ddz = tz - pos.z;
             const dl  = Math.sqrt(ddx*ddx + ddz*ddz) || 1;
@@ -659,16 +721,19 @@
             if (pos.z >  BZ) vel.z -= 0.018; if (pos.z < -BZ) vel.z += 0.018;
 
             // Centre repulsor — fish avoid the content zone
-            const rdist = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 1;
-            if (rdist < 20) {
-              const push = (20 - rdist) / 20 * 0.022;
+            const rdist  = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 1;
+            const rZone  = Math.min(20, Math.min(WORLD.bx, WORLD.bz) * 0.6);
+            if (rdist < rZone) {
+              const push = (rZone - rdist) / rZone * 0.022;
               vel.x += (pos.x / rdist) * push;
               vel.z += (pos.z / rdist) * push;
             }
 
-            // Clamp speed
+            // Clamp speed — startled fish briefly get extra headroom
+            fish.burst *= 0.94;
+            const maxSpd = SPEED * (1 + fish.burst * 2.5);
             const spd = Math.sqrt(vel.x*vel.x + vel.z*vel.z) || 1;
-            if (spd > SPEED) { vel.x *= SPEED/spd; vel.z *= SPEED/spd; }
+            if (spd > maxSpd) { vel.x *= maxSpd/spd; vel.z *= maxSpd/spd; }
 
             pos.x += vel.x; pos.z += vel.z;
             fish.group.position.set(pos.x, -0.8, pos.z);
@@ -741,8 +806,8 @@
             if (spd > maxSpd) { s.vx *= maxSpd/spd; s.vz *= maxSpd/spd; }
             s.mesh.position.x += s.vx;
             s.mesh.position.z += s.vz;
-            if (Math.abs(s.mesh.position.x) > 38) s.vx *= -0.8;
-            if (Math.abs(s.mesh.position.z) > 30) s.vz *= -0.8;
+            if (Math.abs(s.mesh.position.x) > WORLD.bx * 0.95) s.vx *= -0.8;
+            if (Math.abs(s.mesh.position.z) > WORLD.bz * 0.9)  s.vz *= -0.8;
             if (spd > 0.01) s.mesh.rotation.y = Math.atan2(s.vx, s.vz);
           });
 
@@ -775,16 +840,48 @@
             if (r.mesh.position.y < 0) {
               spawnRipple(r.mesh.position.x, r.mesh.position.z, 0.02, 28, 2.5, 12);
               r.mesh.position.set(
-                (Math.random() - 0.5) * 100,
+                (Math.random() - 0.5) * WORLD.bx * 2.4,
                 40 + Math.random() * 20,
-                (Math.random() - 0.5) * 80
+                (Math.random() - 0.5) * WORLD.bz * 2.4
               );
             }
           });
         },
 
+        // Re-anchor everything that was placed from WORLD bounds; the lily
+        // pads' spring physics glides them to their new anchors smoothly.
+        relayout() {
+          coverView();
+          lilyPads.forEach(pad => {
+            pad.anchorX = pad.nx * WORLD.bx * 0.9;
+            pad.anchorZ = pad.nz * WORLD.bz * 0.9;
+          });
+          mistPatches.forEach((m, i) => {
+            const angle = (i / mistPatches.length) * Math.PI * 2;
+            const r     = 20 + (m.noiseOff % 20);
+            m.ax = Math.cos(angle) * r * (WORLD.bx / 42) * 1.3;
+            m.az = Math.sin(angle) * r * (WORLD.bz / 34);
+          });
+        },
+
         setRain(on) { rainActive = on; },
         setMist(on) { mistActive = on; },
+
+        // A tap on the water: one ripple where it landed, nearby koi dart away
+        tapRipple(x, z) {
+          spawnRipple(x, z, 0.1, 120, 8);
+          const R = 16;
+          fishes.forEach(f => {
+            const dx = f.pos.x - x, dz = f.pos.z - z;
+            const d = Math.hypot(dx, dz);
+            if (d < R && d > 0.01) {
+              const k = (1 - d / R) * 0.24;
+              f.vel.x += (dx / d) * k;
+              f.vel.z += (dz / d) * k;
+              f.burst = 1;
+            }
+          });
+        },
 
         // A burst of ripples near the centre — used when the contact block opens
         splash(count = 3) {
@@ -808,9 +905,9 @@
             const group = new THREE.Group();
             // Start off the left edge, scattered along Z
             group.position.set(
-              -60 + Math.random() * 20,
+              -(WORLD.bx + 8) - Math.random() * 12,
               0.55 + Math.random() * 1.8,
-              (Math.random() - 0.5) * 90
+              (Math.random() - 0.5) * WORLD.bz * 2.4
             );
             group.rotation.y = Math.random() * Math.PI * 2;
             group.add(mesh);
@@ -830,7 +927,7 @@
         },
 
         dispose() {
-          rainActive = false; sandMesh = null;
+          rainActive = false; sandMesh = null; pondMesh = null;
           clearScene(objects);
           for (const p of gustPetals) scene.remove(p.group);
           fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; raindrops.length = 0; gustPetals.length = 0; mistPatches.length = 0;
@@ -957,6 +1054,26 @@
       el.addEventListener('blur',       off);
     }
 
+    // ── Tap to ripple — click/touch the water, the water answers ─────────────
+    const _tapVec = new THREE.Vector3();
+    document.addEventListener('click', e => {
+      if (typeof e.clientX !== 'number') return;
+      // UI clicks (stamped hits, contact rows, control bar) are not taps on water
+      if (e.target && e.target.closest && e.target.closest('.hit, #contact-links, #controls')) return;
+      if (!running || frameNum <= INTRO_FRAMES) return;
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0) return;
+      // Unproject the click through the camera onto the ripple plane (y≈0.25)
+      _tapVec.set(
+        (e.clientX / window.innerWidth) * 2 - 1,
+        -(e.clientY / window.innerHeight) * 2 + 1,
+        0.5
+      ).unproject(camera).sub(camera.position).normalize();
+      if (_tapVec.y >= -0.001) return; // ray misses the water
+      const t = (0.25 - camera.position.y) / _tapVec.y;
+      FISH.tapRipple(camera.position.x + _tapVec.x * t, camera.position.z + _tapVec.z * t);
+    });
+
     // ── Pretext ──────────────────────────────────────────────────────────────
     ({ cols, rows, px: fontSize } = charGrid(fontSize));
     sizeAsciiCanvas();
@@ -987,7 +1104,10 @@
       setFontSize(Math.max(lo, Math.min(hi, fontSize)));
       updateFontBar();
       camera.aspect = window.innerWidth / window.innerHeight;
+      camera.fov    = viewFov();
       camera.updateProjectionMatrix();
+      WORLD.recompute();
+      FISH.relayout();
       sizeAsciiCanvas();
       // Re-frame camera when orientation changes / after intro
       if (frameNum > INTRO_FRAMES) {

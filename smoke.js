@@ -96,7 +96,10 @@ let simeTime = 0;
 class V3 { constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;}
   set(x,y,z){this.x=x;this.y=y;this.z=z;return this;}
   setScalar(v){return this.set(v,v,v);}
-  project(){return this;} }
+  project(){return this;}
+  unproject(){return this;}
+  sub(v){this.x-=v.x;this.y-=v.y;this.z-=v.z;return this;}
+  normalize(){const l=Math.hypot(this.x,this.y,this.z)||1;this.x/=l;this.y/=l;this.z/=l;return this;} }
 class Color { constructor(){this.r=0;this.g=0;this.b=0;}
   setHSL(){return this;} lerp(){return this;} clone(){return new Color();}
   copy(){return this;} getHexString(){return '071c1a';} }
@@ -195,6 +198,16 @@ run('open contact, render, copy, close', () => {
 run('toggle controls via [?] and keyboard', () => {
   (listeners['ctl-hit:click'] || []).forEach(fn => fn());
   (listeners['document:keydown'] || []).forEach(fn => fn({ key: '?' }));
+});
+
+run('tap to ripple', () => {
+  (listeners['document:click'] || []).forEach(fn =>
+    fn({ target: null, clientX: 200, clientY: 500 }));
+  for (let f = 0; f < 30; f++) {
+    simeTime += 16.7;
+    const q = rafQueue; rafQueue = [];
+    q.forEach(cb => cb(simeTime));
+  }
 });
 
 run('pause and resume', () => {

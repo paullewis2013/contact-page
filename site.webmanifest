@@ -1,0 +1,11 @@
+{
+  "name": "paullew.is",
+  "short_name": "paullew.is",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#071c1a",
+  "background_color": "#071c1a",
+  "display": "browser"
+}

@@ -1,35 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="1.2" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-
-  <!-- Background -->
+  <!-- pl_ — the site mark. Glyph outlines extracted from DejaVu Sans Mono
+       Bold (the same font the touch icons use), embedded as paths so the
+       letterforms match exactly with no font dependency. Scaled larger in
+       frame than the touch icons so the mark survives 16px browser tabs. -->
   <rect width="32" height="32" rx="6" fill="#071c1a"/>
-
-  <!-- Water ripple -->
-  <text
-    x="16" y="27"
-    text-anchor="middle"
-    font-family="Consolas,monospace"
-    font-size="7"
-    letter-spacing="0.8"
-    fill="#1d7a55"
-    opacity="0.85"
-  >~·~·~</text>
-
-  <!-- Koi fish ><> -->
-  <text
-    x="16" y="19"
-    text-anchor="middle"
-    font-family="Consolas,monospace"
-    font-size="13"
-    fill="#e8903a"
-    filter="url(#glow)"
-  >&gt;&lt;&gt;</text>
+  <g transform="translate(1.551,20.414) scale(0.007812,-0.007812)">
+    <path fill="#ecf0ee" d="M442 158V-426H150V1120H442V952Q488 1049 563.0 1098.0Q638 1147 739 1147Q931 1147 1037.0 993.0Q1143 839 1143 559Q1143 275 1035.5 123.0Q928 -29 729 -29Q639 -29 567.5 17.5Q496 64 442 158ZM850 561Q850 723 796.0 815.0Q742 907 647 907Q552 907 497.0 815.0Q442 723 442 561Q442 399 497.0 307.0Q552 215 647 215Q742 215 796.0 307.0Q850 399 850 561Z"/>
+    <path fill="#ecf0ee" transform="translate(1233,0)" d="M387 467V1331H90V1556H680V467Q680 335 721.0 280.0Q762 225 860 225H1094V0H778Q569 0 478.0 108.0Q387 216 387 467Z"/>
+    <path fill="#e8903a" transform="translate(2466,0)" d="M1233 -293V-483H0V-293Z"/>
+  </g>
 </svg>

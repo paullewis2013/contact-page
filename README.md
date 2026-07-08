@@ -10,6 +10,8 @@ index.html        home — the koi pond
 pretext.js        canvas ASCII renderer (WebGL scene → coloured characters)
 favicon.svg
 .nojekyll         tells GitHub Pages to serve files verbatim (no Jekyll pass)
+og-image.png      link-preview card (OpenGraph/Twitter)
+apple-touch-icon.png / icon-*.png / site.webmanifest — home-screen icons
 preview.command   double-click to preview the site locally (macOS)
 smoke.js          `node smoke.js` — executes the page under mocks; run before pushing
 blog/
@@ -96,20 +98,10 @@ Ideas queued up, roughly in order of value:
 
 ### Pond
 
-- **Tap to ripple.** Click or touch the water to spawn a ripple at that
-  spot, with nearby koi startling away or drifting over to investigate —
-  the ripple pool already exists, so this is ~30 lines and turns the
-  scene into a toy.
 - **Ambient sound toggle** — a soft water loop, off by default.
-- **Screen-reader description** — an `aria-label` on the canvas describing
-  the scene.
 
 ### Housekeeping
 
-- **OpenGraph image + meta description** for the home page (currently a
-  bare `<title>`).
-- **`apple-touch-icon` / web manifest** so the site looks right saved to a
-  phone home screen.
 - **`404.html`** in the site's style — GitHub Pages picks it up
   automatically.
 - **The `/ work` section**, whenever the content exists — the nav is ready
