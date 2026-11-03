@@ -6,7 +6,8 @@ Personal contact page — an ASCII-art koi pond rendered with Three.js and
 ## Structure
 
 ```
-index.html        home — the koi pond
+index.html        home — the koi pond (Three.js via an import map; static contact
+                  block as the no-JS / CDN-down fallback)
 pretext.js        canvas ASCII renderer (WebGL scene → coloured characters)
 favicon.svg
 .nojekyll         tells GitHub Pages to serve files verbatim (no Jekyll pass)
@@ -32,7 +33,7 @@ blog/
    which is what made Chrome choppy. Splashes are the 3D ripple rings
    only, seen through the ASCII filter — there is no separate character
    overlay drawn on top of them.
-3. The page title, contact section, and nav link are stamped into the same
+3. The page title, contact section, and `[?]` toggle are stamped into the same
    character grid as the water each frame (`stampUI`) — there is no HTML
    overlay UI at all. Invisible hit elements on top of the stamped cells
    provide real links, clicks, hover, and keyboard focus; the contact
@@ -59,12 +60,14 @@ paused, with controls visible.
      title: 'Post Title',
      date: 'YYYY-MM-DD',
      summary: 'One line shown in the post list.',
+     draft: true,  // optional — hides it from the list until you're ready
    }
    ```
 
 3. Commit and push. Posts are fetched and rendered client-side by
    `blog/md.js` (a small self-contained Markdown renderer — no build step,
-   no CDN dependency). Newest date sorts first.
+   no CDN dependency). Newest date sorts first. Nest lists by indenting
+   with spaces; ordered lists keep their start number.
 
 ## Previewing locally
 
@@ -72,9 +75,14 @@ Browsers block `fetch()` of local files, so post bodies won't load if you
 open the html files straight from disk (and `file://` shows directory
 listings instead of resolving `index.html`). Double-click
 `preview.command` (macOS) to serve the site at http://localhost:8437 and
-open it — this matches exactly how GitHub Pages serves it in production.
+open it — this matches exactly how GitHub Pages serves it in production
+(internal links are root-relative, so the site must be served from its
+root as it is there).
 
 Direct links to posts look like `https://paullew.is/blog/#/<slug>`.
+
+The home page doesn't link to the blog yet. It's live at `/blog/` but
+only reachable by URL until the link is added back.
 
 ## Roadmap
 
@@ -92,9 +100,8 @@ Ideas queued up, roughly in order of value:
 - **Syntax highlighting** for code blocks — a ~50-line tokenizer for
   JS/JSON fits the zero-dependency ethos better than pulling in
   highlight.js.
-- **Post niceties:** prev/next links at the bottom of a post, a
-  reading-time estimate in the list, and a `draft: true` manifest flag for
-  posts that aren't ready to be listed.
+- **Post niceties:** prev/next links at the bottom of a post and a
+  reading-time estimate in the list.
 
 ### Pond
 
@@ -104,5 +111,5 @@ Ideas queued up, roughly in order of value:
 
 - **`404.html`** in the site's style — GitHub Pages picks it up
   automatically.
-- **The `/ work` section**, whenever the content exists — the nav is ready
-  for it.
+- **Home-page nav** — restore the `/ writing` link once the blog is ready
+  to show, and add `/ work` whenever that content exists.

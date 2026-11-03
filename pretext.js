@@ -28,7 +28,6 @@ class Pretext {
     satBoost      = 1.0,
     lumBoost      = 1.0,
     font          = '13px monospace',
-    fontSize      = 13,
     bg            = '#ffffff',
   } = {}) {
     this.cols          = cols;
@@ -37,7 +36,6 @@ class Pretext {
     this.satBoost      = satBoost;
     this.lumBoost      = lumBoost;
     this.font          = font;
-    this.fontSize      = fontSize;
     this.bg            = bg;
 
     // Downsampling canvas (cols × rows) — also the colour source for the

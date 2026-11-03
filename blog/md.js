@@ -3,8 +3,8 @@
  *
  * Supports the GFM subset the posts actually use: headings, paragraphs,
  * bold/italic/strikethrough, inline code, links, images, ordered and
- * unordered lists, blockquotes, fenced code blocks, horizontal rules,
- * and pipe tables. No dependencies, no CDN — it cannot fail to load.
+ * unordered lists (nested by indenting with spaces), blockquotes, fenced
+ * code blocks, horizontal rules, and pipe tables. No dependencies, no CDN — it cannot fail to load.
  */
 function renderMarkdown(src) {
   'use strict';
@@ -106,25 +106,58 @@ function renderMarkdown(src) {
       continue;
     }
 
-    // Lists (single level; continuation lines are folded into the item)
+    // Lists. Content indented under an item (by at least two spaces) belongs
+    // to it and is rendered recursively, so nested lists, code blocks and
+    // quotes inside items all work; plain wrapped lines are folded into the
+    // item text. Ordered lists keep their start number.
     if (isUl(line) || isOl(line)) {
       const ordered = isOl(line);
       const test    = ordered ? isOl : isUl;
-      const strip   = ordered
-        ? l => l.replace(/^ {0,3}\d{1,3}[.)]\s+/, '')
-        : l => l.replace(/^ {0,3}[-*+]\s+/, '');
-      const items = [];
+      const marker  = ordered ? /^ {0,3}\d{1,3}[.)]\s+/ : /^ {0,3}[-*+]\s+/;
+      const start   = ordered ? parseInt(line.match(/^ {0,3}(\d{1,3})/)[1], 10) : 1;
+      const items   = [];
+      const lead    = l => l.match(/^ */)[0].length;
       while (i < lines.length) {
-        if (test(lines[i])) {
-          items.push(strip(lines[i]));
+        const l   = lines[i];
+        const cur = items[items.length - 1];
+        // A marker starts a sibling item only when it sits left of the
+        // current item's content; indented further, it's a nested list
+        if (test(l) && (!cur || lead(l) < cur.indent)) {
+          // Content indent is the marker width: "- " → 2, "10. " → 4
+          const indent = l.match(marker)[0].length;
+          items.push({ text: l.slice(indent), sub: [], indent });
           i++;
-        } else if (!isBlank(lines[i]) && /^\s{2,}/.test(lines[i]) && items.length) {
-          items[items.length - 1] += ' ' + lines[i].trim(); // continuation
+          continue;
+        }
+        if (isBlank(l)) {
+          // A blank line ends the list unless the next line is another item
+          // of this list (loose list) or more content indented under the
+          // current item (a paragraph break inside it)
+          const next = lines[i + 1] || '';
+          if (test(next) && lead(next) < cur.indent) { i++; continue; }
+          if (/^ {2,}\S/.test(next)) { cur.sub.push(''); i++; continue; }
+          break;
+        }
+        if (/^ {2,}\S/.test(l)) {
+          cur.sub.push(l.replace(new RegExp(`^ {1,${cur.indent}}`), ''));
           i++;
-        } else break;
+          continue;
+        }
+        break;
       }
-      const tag = ordered ? 'ol' : 'ul';
-      html.push(`<${tag}>${items.map(it => `<li>${inline(it)}</li>`).join('')}</${tag}>`);
+      const renderItem = it => {
+        let k = 0, text = it.text;
+        while (k < it.sub.length && !isBlank(it.sub[k]) && !isUl(it.sub[k]) && !isOl(it.sub[k]) &&
+               !isFence(it.sub[k]) && !isQuote(it.sub[k]) && !isHeading(it.sub[k])) {
+          text += ' ' + it.sub[k].trim(); // wrapped continuation line
+          k++;
+        }
+        const rest = it.sub.slice(k).join('\n');
+        return `<li>${inline(text)}${rest.trim() ? '\n' + renderMarkdown(rest) : ''}</li>`;
+      };
+      const tag   = ordered ? 'ol' : 'ul';
+      const attrs = ordered && start !== 1 ? ` start="${start}"` : '';
+      html.push(`<${tag}${attrs}>${items.map(renderItem).join('')}</${tag}>`);
       continue;
     }
 

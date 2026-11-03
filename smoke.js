@@ -1,6 +1,6 @@
 // smoke.js — executes index.html's inline scripts under a mock browser
 // environment: full init, the intro, weather ticks, several rendered frames,
-// resize, the font scrubber, and the drawer. Catches missing identifiers and
+// resize, the font scrubber, the drawer, and a petal gust. Catches missing identifiers and
 // runtime errors that syntax checks can't (e.g. a deleted function still
 // being called). Run: node smoke.js
 'use strict';
@@ -101,7 +101,7 @@ class V3 { constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;}
   sub(v){this.x-=v.x;this.y-=v.y;this.z-=v.z;return this;}
   normalize(){const l=Math.hypot(this.x,this.y,this.z)||1;this.x/=l;this.y/=l;this.z/=l;return this;} }
 class Color { constructor(){this.r=0;this.g=0;this.b=0;}
-  setHSL(){return this;} lerp(){return this;} clone(){return new Color();}
+  setHSL(){return this;} setHex(){return this;} lerp(){return this;} clone(){return new Color();}
   copy(){return this;} getHexString(){return '071c1a';} }
 class Obj { constructor(){ this.position=new V3(); this.rotation={x:0,y:0,z:0,order:''};
   this.scale=new V3(1,1,1); this.children=[]; this.visible=true; this.renderOrder=0; }
@@ -110,6 +110,7 @@ function geo(n) { return {
   attributes: { position: { array: new Float32Array(n * 3) } },
   setAttribute() {},
 }; }
+let matCount = 0; // materials allocated — the petal pool must not grow this
 global.THREE = {
   Scene: class extends Obj { remove() {} },
   Group: class extends Obj {},
@@ -120,7 +121,7 @@ global.THREE = {
   PerspectiveCamera: class extends Obj { constructor(){ super(); this.aspect=1; }
     updateProjectionMatrix(){} },
   HemisphereLight: class extends Obj {},
-  MeshBasicMaterial: class { constructor(o={}){ Object.assign(this,{opacity:1},o); this.color=new Color(); } },
+  MeshBasicMaterial: class { constructor(o={}){ matCount++; Object.assign(this,{opacity:1},o); this.color=new Color(); } },
   LineBasicMaterial: class { constructor(o={}){ Object.assign(this,o);} },
   Color, Vector3: V3,
   BufferAttribute: class { constructor(){} },
@@ -148,7 +149,9 @@ function run(label, fn) {
 }
 
 run('load pretext.js', () => (0, eval)(pretext + '; globalThis.Pretext = Pretext;'));
-scripts.forEach((code, i) => run(`execute inline script ${i} (init)`, () => (0, eval)(code)));
+scripts.forEach((code, i) => run(`execute inline script ${i}`, () => (0, eval)(code)));
+// In the browser the module script imports Three.js and then calls this
+run('startPond() (init)', () => { window.THREE = THREE; globalThis.startPond(); });
 
 // Drive the animation loop: rAF callbacks with advancing time
 run('run 30 frames (intro)', () => {
@@ -218,6 +221,22 @@ run('pause and resume', () => {
     const q = rafQueue; rafQueue = [];
     q.forEach(cb => cb(simeTime));
   }
+});
+
+run('petal gust spawns from the pool and recycles', () => {
+  // Weather picks index floor(0.9*3) = petals; the initial clear period is at
+  // most 1800 frames and petals live at most 660, so 2600 frames covers both
+  const realRandom = Math.random;
+  Math.random = () => 0.9;
+  const before = matCount;
+  try {
+    for (let f = 0; f < 2600; f++) {
+      simeTime += 16.7;
+      const q = rafQueue; rafQueue = [];
+      q.forEach(cb => cb(simeTime));
+    }
+  } finally { Math.random = realRandom; }
+  if (matCount !== before) throw new Error(`gust allocated ${matCount - before} new materials`);
 });
 
 console.log(failed ? '\nSMOKE TEST FAILED' : '\nall smoke tests passed');

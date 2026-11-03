@@ -3,9 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Three.js, the only external dependency, as an ES module (the old UMD
+       build/three.min.js was deprecated in r150 and removed after r160).
+       Pinned; to upgrade, bump the version here and in the modulepreload. -->
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }
+  </script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>paullew.is</title>
-  <meta name="description" content="Paul Lewis — fullstack software engineer. An ASCII koi pond, and occasional writing.">
+  <meta name="description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
   <meta name="theme-color" content="#071c1a">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-title" content="paullew.is">
@@ -13,7 +21,7 @@
   <link rel="canonical" href="https://paullew.is/">
   <meta property="og:site_name" content="paullew.is">
   <meta property="og:title" content="paullew.is">
-  <meta property="og:description" content="Paul Lewis — fullstack software engineer. An ASCII koi pond, and occasional writing.">
+  <meta property="og:description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://paullew.is/">
   <meta property="og:image" content="https://paullew.is/og-image.png">
@@ -21,8 +29,9 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="paullewis in ASCII art over a dark koi pond">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@pel_dev">
   <meta name="twitter:title" content="paullew.is">
-  <meta name="twitter:description" content="Paul Lewis — fullstack software engineer. An ASCII koi pond, and occasional writing.">
+  <meta name="twitter:description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
   <meta name="twitter:image" content="https://paullew.is/og-image.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -56,13 +65,14 @@
       display: flex;
       gap: 1.2rem;
       align-items: center;
-      background: rgba(255,255,255,0.88);
-      border: 1px solid #ddd;
-      border-radius: 999px;
-      padding: 0.5rem 1.4rem;
-      font-family: system-ui, sans-serif;
-      font-size: 12px;
-      color: #333;
+      background: rgba(7,28,26,0.92);
+      border: 1px solid rgba(232,144,58,0.28);
+      border-radius: 4px;
+      padding: 0.5rem 1.2rem;
+      font-family: Consolas, Menlo, monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.75);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       white-space: nowrap;
@@ -76,24 +86,25 @@
     }
 
     #controls button {
-      font-size: 12px;
-      font-weight: 700;
-      border: 1px solid #ccc;
-      border-radius: 999px;
-      padding: 0.2rem 0.8rem;
+      font: inherit;
+      letter-spacing: inherit;
+      border: none;
+      border-radius: 0;
+      padding: 0.2rem 0.3rem;
       cursor: pointer;
-      background: #fff;
-      transition: background 0.15s;
+      background: none;
+      color: rgba(232,144,58,0.75);
+      transition: color 0.15s;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
-    #controls button:hover { background: #f0f0f0; }
+    #controls button:hover { color: #e8903a; }
 
     #fontBar {
-      font-family: Consolas, Menlo, monospace;
+      font-family: inherit;
       font-size: 11px;
       letter-spacing: 0.12em;
-      color: #888;
+      color: rgba(255,255,255,0.45);
       user-select: none;
       cursor: pointer;
     }
@@ -106,7 +117,7 @@
         padding: 0.45rem 0.85rem;
         flex-wrap: wrap;
         justify-content: center;
-        border-radius: 18px;
+        border-radius: 4px;
         max-width: calc(100vw - 1.6rem);
         white-space: normal;
       }
@@ -114,7 +125,7 @@
     }
 
     /* ── Invisible hit targets over the canvas-stamped UI ─────────────────
-       The title, contact hint, and nav link are drawn into the character
+       The title, contact hint, and [?] toggle are drawn into the character
        grid itself (see stampUI in the script); these transparent elements
        sit on top of those cells to provide real click/hover/keyboard
        semantics. Positioned from cell coordinates by positionHits(). */
@@ -180,15 +191,51 @@
       transition: opacity 0.8s ease;
     }
     #loader.fade-out { opacity: 0; }
+
+    /* Static contact block — shown when JS is off (the noscript style in the
+       body) or when Three.js never arrives and the pond can't start. */
+    #fallback {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      padding: 1rem;
+      background: #071c1a;
+      color: rgba(255,255,255,0.75);
+      font-family: Consolas, Menlo, monospace;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+    #fallback.visible { display: flex; }
+    #fallback .fb-title { font-size: 18px; color: rgba(255,255,255,0.95); }
+    #fallback .fb-title .dot { color: #e8903a; }
+    #fallback .fb-role { color: rgba(255,255,255,0.45); margin-bottom: 0.9rem; }
+    #fallback a { color: rgba(255,255,255,0.75); text-decoration: none; padding: 0.2rem 0; transition: color 0.15s; }
+    #fallback a .ci { color: rgba(232,144,58,0.7); }
+    #fallback a:hover, #fallback a:hover .ci { color: #e8903a; }
   </style>
 </head>
 <body>
   <div id="loader"></div>
+  <!-- Static contact block: what you get without JS, or if Three.js fails to load -->
+  <div id="fallback">
+    <p class="fb-title">paullew<span class="dot">.</span>is</p>
+    <p class="fb-role">fullstack engineer · product &amp; design · NYC</p>
+    <a href="mailto:contact@paullew.is"><span class="ci">@ </span> contact@paullew.is</a>
+    <a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener"><span class="ci">in</span> linkedin.com/in/paullewispgh</a>
+    <a href="https://github.com/paullewis2013" target="_blank" rel="noopener"><span class="ci">gh</span> github.com/paullewis2013</a>
+    <a href="https://x.com/pel_dev" target="_blank" rel="noopener"><span class="ci">x </span> x.com/pel_dev</a>
+  </div>
+  <noscript><style>#loader { display: none; } #fallback { display: flex; }</style></noscript>
   <canvas id="ascii" role="img" aria-label="An animated koi pond rendered in ASCII characters: koi drift among lily pads while ripples, rain, mist, and drifting petals pass over the water."></canvas>
-  <!-- Interactive layer for the canvas-stamped title / hint / nav -->
+  <!-- Interactive layer for the canvas-stamped title / hint / [?] -->
   <button class="hit" id="title-hit" aria-label="paullew.is — open contact"></button>
   <button class="hit" id="hint-hit" aria-label="Open contact"></button>
-  <a class="hit" id="nav-hit" href="blog/index.html" aria-label="Writing"></a>
   <button class="hit" id="ctl-hit" aria-label="Toggle controls"></button>
 
   <!-- Contact link rows: real HTML text (selectable, copyable, right-clickable)
@@ -198,16 +245,36 @@
     <button class="c-copy" id="c-copy" style="--d:0.17s" aria-label="Copy email address">[copy]</button>
     <a class="c-row" id="c-li" href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener" style="--d:0.25s"><span class="ci">in</span> linkedin.com/in/paullewispgh</a>
     <a class="c-row" id="c-gh" href="https://github.com/paullewis2013" target="_blank" rel="noopener" style="--d:0.33s"><span class="ci">gh</span> github.com/paullewis2013</a>
+    <a class="c-row" id="c-x" href="https://x.com/pel_dev" target="_blank" rel="noopener" style="--d:0.41s"><span class="ci">x </span> x.com/pel_dev</a>
   </div>
 
   <canvas id="glcanvas"></canvas>
   <div id="controls">
     <span id="fontBar" title="Drag to change character size"></span>
-    <button id="pauseBtn">⏸ Pause</button>
+    <button id="pauseBtn">[ pause ]</button>
   </div>
 
-  <!-- Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <!-- Boot guard. Three.js is imported by the module script at the bottom of
+       the page; if it never arrives (CDN down or blocked) or the pond throws
+       during startup, the static contact block takes over instead of leaving
+       a dark screen. -->
+  <script>
+  (() => {
+    let booted = false;
+    const fallback = document.getElementById('fallback');
+    window.__pondBooted = () => { booted = true; fallback.classList.remove('visible'); };
+    window.__pondFail = () => {
+      if (booted) return;
+      const loader = document.getElementById('loader');
+      if (loader) loader.remove();
+      fallback.classList.add('visible');
+    };
+    // Module scripts have executed (or failed) by the time load fires; the
+    // timer covers a CDN that hangs instead of failing.
+    window.addEventListener('load', () => { if (!booted) window.__pondFail(); });
+    setTimeout(() => { if (!booted) window.__pondFail(); }, 8000);
+  })();
+  </script>
 
   <!-- Perlin / Simplex noise (public domain — josephg/noisejs) -->
   <script>
@@ -218,7 +285,9 @@
   <script src="pretext.js"></script>
 
   <script>
-  (() => {
+  // Everything below runs once Three.js has been imported (see the module
+  // script at the bottom of the page).
+  function startPond() {
     'use strict';
 
     // ── Sizing ───────────────────────────────────────────────────────────────
@@ -289,7 +358,7 @@
 
     // WORLD — the visible extent of the water at the settled camera, plus a
     // small margin. Everything that positions itself in the pond (fish
-    // bounds, lily pads, skimmers, rain, mist) scales to these so the whole
+    // bounds, lily pads, rain, mist) scales to these so the whole
     // scene stays on screen at any aspect ratio.
     const WORLD = {
       bx: 42, bz: 34,
@@ -308,15 +377,9 @@
 
     noise.seed(Math.random());
 
-    // ── Helper ───────────────────────────────────────────────────────────────
-    function clearScene(objects) {
-      objects.forEach(o => scene.remove(o));
-      objects.length = 0;
-    }
-
     // ── KOI POND ─────────────────────────────────────────────────────────────
     const FISH = (() => {
-      const objects = [], fishes = [], ripples = [], lilyPads = [], skimmers = [], raindrops = [], gustPetals = [], mistPatches = [];
+      const fishes = [], ripples = [], lilyPads = [], raindrops = [], gustPetals = [], mistPatches = [];
       let sandMesh = null;
       let pondMesh = null;
 
@@ -332,6 +395,7 @@
       const FISH_COUNT   = 12;
       const RIPPLE_COUNT = 80;
       const RAIN_COUNT   = 90;
+      const PETAL_POOL   = 90; // a gust activates 65–89; they live ~7–11s
       let rainActive = false;
       let mistActive = false;
       const ringGeo   = new THREE.RingGeometry(1, 1.2, 38);
@@ -424,7 +488,7 @@
           );
           pondMesh.rotation.x = -Math.PI / 2;
           pondMesh.position.y = -1.2;
-          objects.push(pondMesh); scene.add(pondMesh);
+          scene.add(pondMesh);
 
           // Sand — noise-driven vertex colours, mesh drifts slowly in update()
           {
@@ -447,7 +511,7 @@
             sandMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
             sandMesh.rotation.x = -Math.PI / 2;
             sandMesh.position.y = -1.19;
-            objects.push(sandMesh); scene.add(sandMesh);
+            scene.add(sandMesh);
           }
 
           // Lily pads
@@ -494,7 +558,7 @@
             pad.position.x = pad.anchorX;
             pad.position.z = pad.anchorZ;
             lilyPads.push(pad);
-            objects.push(pad); scene.add(pad);
+            scene.add(pad);
 
             // Veins: one main mid-rib + secondary branches on each side
             const veinPositions = [];
@@ -523,7 +587,7 @@
             veinMesh.rotation.z = pad.rotation.z;
             veinMesh.position.set(pad.position.x, 0.31, pad.position.z);
             pad.vein = veinMesh;
-            objects.push(veinMesh); scene.add(veinMesh);
+            scene.add(veinMesh);
 
             // Shadow on pond floor
             const padShadowMesh = new THREE.Mesh(
@@ -534,7 +598,7 @@
             padShadowMesh.rotation.x = -Math.PI / 2;
             padShadowMesh.position.set(pad.position.x + 1.8, -1.14, pad.position.z + 1.4);
             pad.shadow = padShadowMesh;
-            objects.push(padShadowMesh); scene.add(padShadowMesh);
+            scene.add(padShadowMesh);
           });
 
           // Ripple pool
@@ -545,18 +609,9 @@
             mesh.position.y = 0.25;
             mesh.scale.setScalar(0.01);
             ripples.push({ mesh, mat, active: false, life: 0, maxLife: 0, startScale: 0, maxScale: 9 });
-            objects.push(mesh); scene.add(mesh);
+            scene.add(mesh);
           }
 
-          // Water skimmers — small dark bugs that zip on the surface
-          const skimGeo = new THREE.BoxGeometry(0.28, 0.1, 0.65);
-          for (let i = 0; i < 4; i++) {
-            const mat  = new THREE.MeshBasicMaterial({ color: 0x071210 });
-            const mesh = new THREE.Mesh(skimGeo, mat);
-            mesh.position.set((Math.random()-0.5)*WORLD.bx*1.3, 0.45, (Math.random()-0.5)*WORLD.bz*1.2);
-            skimmers.push({ mesh, vx: (Math.random()-0.5)*0.3, vz: (Math.random()-0.5)*0.3, noiseOff: Math.random()*100 });
-            objects.push(mesh); scene.add(mesh);
-          }
 
           for (let i = 0; i < FISH_COUNT; i++) {
             const { group, tailPivot } = buildKoi(i);
@@ -573,7 +628,6 @@
             const shadowGroup = new THREE.Group();
             shadowGroup.position.y = -1.14;
             shadowGroup.add(shadowMesh);
-            objects.push(shadowGroup);
             scene.add(shadowGroup);
 
             const fish = {
@@ -593,7 +647,6 @@
               burst:    0, // startle energy from taps; decays each frame
             };
             fishes.push(fish);
-            objects.push(group);
             scene.add(group);
           }
 
@@ -609,8 +662,21 @@
               (Math.random() - 0.5) * WORLD.bz * 2.4
             );
             raindrops.push({ mesh, speed: 0.55 + Math.random() * 0.35 });
-            objects.push(mesh);
             scene.add(mesh);
+          }
+
+          // Petal pool — pre-allocated like the rain. spawnGust() activates
+          // idle petals and they return to the pool when they fade, so a gust
+          // never allocates (or leaks) geometry and materials.
+          for (let i = 0; i < PETAL_POOL; i++) {
+            const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 1 });
+            const mesh = new THREE.Mesh(petalGeo, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            const group = new THREE.Group();
+            group.visible = false;
+            group.add(mesh);
+            scene.add(group);
+            gustPetals.push({ group, mesh, mat, active: false, vx: 0, vz: 0, spin: 0, noiseOff: 0, maxSpd: 0, life: 0, maxLife: 1 });
           }
 
           // Mist patches — soft radial blobs drifting near the pond edges
@@ -645,7 +711,6 @@
             mesh.position.set(ax, 3 + Math.random() * 2, az);
             mesh.renderOrder = 2;
             mistPatches.push({ mesh, mat, ax, az, noiseOff: Math.random() * 100, baseOpacity });
-            objects.push(mesh);
             scene.add(mesh);
           }
 
@@ -775,9 +840,10 @@
             }
           });
 
-          // Gust petals — fast wind burst, fade out over lifetime
-          for (let gi = gustPetals.length - 1; gi >= 0; gi--) {
-            const p = gustPetals[gi];
+          // Gust petals — fast wind burst, fade out over lifetime, then back
+          // to the pool
+          gustPetals.forEach((p, gi) => {
+            if (!p.active) return;
             p.life++;
             const alpha = Math.max(0, 1 - p.life / p.maxLife);
             p.mat.opacity = alpha;
@@ -790,26 +856,9 @@
             p.group.position.z += p.vz;
             p.group.position.y  = 0.7 + Math.sin(f * 0.018 + p.noiseOff) * 0.2 + (p.life / p.maxLife) * -0.3;
             p.group.rotation.y += p.spin;
-            if (alpha <= 0) {
-              scene.remove(p.group);
-              gustPetals.splice(gi, 1);
-            }
-          }
-
-          // Water skimmers — rapid noisy bursts
-          skimmers.forEach((s, i) => {
-            const t = f * 0.009 + s.noiseOff;
-            s.vx += noise.simplex3(t, i,  0) * 0.055;
-            s.vz += noise.simplex3(i, t,  0) * 0.055;
-            const spd = Math.sqrt(s.vx*s.vx + s.vz*s.vz);
-            const maxSpd = 0.55;
-            if (spd > maxSpd) { s.vx *= maxSpd/spd; s.vz *= maxSpd/spd; }
-            s.mesh.position.x += s.vx;
-            s.mesh.position.z += s.vz;
-            if (Math.abs(s.mesh.position.x) > WORLD.bx * 0.95) s.vx *= -0.8;
-            if (Math.abs(s.mesh.position.z) > WORLD.bz * 0.9)  s.vz *= -0.8;
-            if (spd > 0.01) s.mesh.rotation.y = Math.atan2(s.vx, s.vz);
+            if (alpha <= 0) { p.active = false; p.group.visible = false; }
           });
+
 
           // Sand drift — translate the whole plane slowly through noise
           {
@@ -895,42 +944,32 @@
         spawnGust() {
           const count = 65 + Math.floor(Math.random() * 25);
           // Wind blows roughly left-to-right with a slight Z spread
-          for (let i = 0; i < count; i++) {
-            const col = PETAL_COLORS[Math.floor(Math.random() * PETAL_COLORS.length)];
-            const mat = new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: 1 });
-            const mesh = new THREE.Mesh(petalGeo, mat);
+          let spawned = 0;
+          for (const p of gustPetals) {
+            if (spawned >= count) break;
+            if (p.active) continue;
+            spawned++;
+            p.mat.color.setHex(PETAL_COLORS[Math.floor(Math.random() * PETAL_COLORS.length)]);
+            p.mat.opacity = 1;
             const size = 1.0 + Math.random() * 1.2;
-            mesh.scale.set(size, size, 1);
-            mesh.rotation.x = -Math.PI / 2;
-            const group = new THREE.Group();
+            p.mesh.scale.set(size, size, 1);
             // Start off the left edge, scattered along Z
-            group.position.set(
+            p.group.position.set(
               -(WORLD.bx + 8) - Math.random() * 12,
               0.55 + Math.random() * 1.8,
               (Math.random() - 0.5) * WORLD.bz * 2.4
             );
-            group.rotation.y = Math.random() * Math.PI * 2;
-            group.add(mesh);
-            scene.add(group);
-            const maxLife = 420 + Math.floor(Math.random() * 240); // ~7-11 seconds at 60fps
-            gustPetals.push({
-              group, mat,
-              vx: 0.18 + Math.random() * 0.14,
-              vz: (Math.random() - 0.5) * 0.08,
-              spin: (Math.random() < 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03),
-              noiseOff: Math.random() * 100,
-              maxSpd: 0.22 + Math.random() * 0.08,
-              life: 0,
-              maxLife,
-            });
+            p.group.rotation.y = Math.random() * Math.PI * 2;
+            p.vx       = 0.18 + Math.random() * 0.14;
+            p.vz       = (Math.random() - 0.5) * 0.08;
+            p.spin     = (Math.random() < 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03);
+            p.noiseOff = Math.random() * 100;
+            p.maxSpd   = 0.22 + Math.random() * 0.08;
+            p.life     = 0;
+            p.maxLife  = 420 + Math.floor(Math.random() * 240); // ~7-11 seconds at 60fps
+            p.active   = true;
+            p.group.visible = true;
           }
-        },
-
-        dispose() {
-          rainActive = false; sandMesh = null; pondMesh = null;
-          clearScene(objects);
-          for (const p of gustPetals) scene.remove(p.group);
-          fishes.length = 0; ripples.length = 0; lilyPads.length = 0; skimmers.length = 0; raindrops.length = 0; gustPetals.length = 0; mistPatches.length = 0;
         },
       };
     })();
@@ -962,13 +1001,13 @@
     // right-clicked like normal links.
     const titleHit  = document.getElementById('title-hit');
     const hintHit   = document.getElementById('hint-hit');
-    const navHit    = document.getElementById('nav-hit');
     const ctlHit    = document.getElementById('ctl-hit');
     const cLinksEl  = document.getElementById('contact-links');
     const cMail     = document.getElementById('c-mail');
     const cCopy     = document.getElementById('c-copy');
     const cLi       = document.getElementById('c-li');
     const cGh       = document.getElementById('c-gh');
+    const cX        = document.getElementById('c-x');
 
     let contactOpen     = false;
     let contactOpenedAt = 0; // frameNum when opened, for the stamped rows' stagger
@@ -1044,8 +1083,8 @@
 
     // Hover/focus feedback for the stamped UI (read by stampUI each frame);
     // the HTML contact rows use plain CSS :hover instead.
-    const hover = { title: false, hint: false, nav: false, ctl: false };
-    for (const [el, key] of [[titleHit, 'title'], [hintHit, 'hint'], [navHit, 'nav'], [ctlHit, 'ctl']]) {
+    const hover = { title: false, hint: false, ctl: false };
+    for (const [el, key] of [[titleHit, 'title'], [hintHit, 'hint'], [ctlHit, 'ctl']]) {
       const on  = () => { hover[key] = true;  if (!running) renderFrame(); };
       const off = () => { hover[key] = false; if (!running) renderFrame(); };
       el.addEventListener('mouseenter', on);
@@ -1085,7 +1124,6 @@
       satBoost: 0,
       lumBoost: LUM_START,
       font: `${Math.round(fontSize * dpr())}px Consolas, Menlo, monospace`,
-      fontSize,
       bg: '#071c1a',
     });
 
@@ -1093,7 +1131,6 @@
       ({ cols, rows, px } = charGrid(px)); // may raise px to respect MAX_CELLS
       fontSize    = px;
       pt.font     = `${Math.round(px * dpr())}px Consolas, Menlo, monospace`;
-      pt.fontSize = px;
       pt.resize(cols, rows);
       sizeRenderer();
       positionHits();
@@ -1118,7 +1155,7 @@
       renderFrame(); // repaint immediately, even while paused
     });
 
-    // ── Stamped UI — title, hint, nav, and [?] drawn into the character grid ─
+    // ── Stamped UI — title, hint, and [?] drawn into the character grid ─────
     // Rendered with the same font on the same cell grid as the water, so the
     // page text is literally part of the ASCII scene. Cells under a glyph are
     // cleared to the current background; spaces let the water show through.
@@ -1141,16 +1178,16 @@
     const DOT_COL   = TITLE_ART[DOT_ROW].lastIndexOf('(_)') + 1;
     const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
     const HINT_TEXT = '[ contact ]';
-    const NAV_TEXT  = '/ writing';
 
     // Contact block — stamped inline where the hint sits when open.
     // Interactive rows carry a key matching the hover map / hit elements.
     const CT_WAVE  = '~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~';
-    const CT_ROLE  = 'fullstack engineer · product & design';
+    const CT_ROLE  = 'fullstack engineer · product & design · NYC';
     const CT_LINKS = [
       { key: 'mail', icon: '@ ', text: 'contact@paullew.is', copy: true },
       { key: 'li',   icon: 'in', text: 'linkedin.com/in/paullewispgh' },
       { key: 'gh',   icon: 'gh', text: 'github.com/paullewis2013' },
+      { key: 'x',    icon: 'x ', text: 'x.com/pel_dev' },
     ];
     const CT_COPY_W = '[copied]'.length;
     const CT_W = Math.max(
@@ -1159,7 +1196,7 @@
     );
     const CT_H = CT_LINKS.length + 3; // wave + role + links + wave
     const HINT_APPEAR = 192; // sim frames (~3.2s), matching the old CSS delays
-    const NAV_APPEAR  = 216; // ~3.6s
+    const CTL_APPEAR  = 216; // ~3.6s
 
     function uiLayout() {
       const titleCol = Math.round((cols - TITLE_W) / 2);
@@ -1170,8 +1207,6 @@
         hintRow: titleRow + TITLE_H + 1,
         ctCol:   Math.round((cols - CT_W) / 2),
         ctRow:   titleRow + TITLE_H + 1,
-        navCol:  cols - NAV_TEXT.length - 2,
-        navRow:  1,
         ctlCol:  1,
         ctlRow:  rows - 2 - (coarsePointer() ? 1 : 0), // clear of the iOS home indicator
       };
@@ -1232,17 +1267,13 @@
         stampContact(L);
       }
 
-      // Nav link and the [?] controls toggle
-      const navA = Math.max(0, Math.min(1, (frameNum - NAV_APPEAR) / 30));
-      if (navA > 0) {
-        stampText([NAV_TEXT], L.navCol, L.navRow, () =>
-          hover.nav ? `rgba(232,144,58,${navA.toFixed(2)})`
-                    : `rgba(255,255,255,${(navA * 0.5).toFixed(2)})`);
-
+      // The [?] controls toggle
+      const ctlA = Math.max(0, Math.min(1, (frameNum - CTL_APPEAR) / 30));
+      if (ctlA > 0) {
         const ctlOn = controlsEl.classList.contains('visible');
         stampText(['[?]'], L.ctlCol, L.ctlRow, () =>
-          (hover.ctl || ctlOn) ? `rgba(232,144,58,${navA.toFixed(2)})`
-                               : `rgba(255,255,255,${(navA * 0.35).toFixed(2)})`);
+          (hover.ctl || ctlOn) ? `rgba(232,144,58,${ctlA.toFixed(2)})`
+                               : `rgba(255,255,255,${(ctlA * 0.35).toFixed(2)})`);
       }
     }
 
@@ -1281,7 +1312,6 @@
       const pad = coarsePointer() ? 16 : 10; // ≥44px touch targets on touch devices
       place(titleHit, L.titleCol, L.titleRow, TITLE_W, TITLE_H, 2);
       place(hintHit,  L.hintCol,  L.hintRow,  HINT_TEXT.length, 1, pad);
-      place(navHit,   L.navCol,   L.navRow,   NAV_TEXT.length,  1, pad);
       place(ctlHit,   L.ctlCol,   L.ctlRow,   3,                1, pad);
 
       // Contact link rows: real HTML text laid onto the grid. Font size and
@@ -1301,6 +1331,7 @@
         placeRow(cCopy, 0, L.ctCol + CT_W - '[copied]'.length);
         placeRow(cLi,   1, L.ctCol);
         placeRow(cGh,   2, L.ctCol);
+        placeRow(cX,    3, L.ctCol);
       }
     }
 
@@ -1353,7 +1384,7 @@
     const pauseBtn = document.getElementById('pauseBtn');
     function setRunning(on) {
       running = on;
-      pauseBtn.textContent = on ? '⏸ Pause' : '▶ Play';
+      pauseBtn.textContent = on ? '[ pause ]' : '[ play ]';
       if (on) { lastTime = performance.now(); accumulator = 0; requestAnimationFrame(loop); }
     }
     pauseBtn.addEventListener('click', () => setRunning(!running));
@@ -1466,6 +1497,7 @@
 
     positionHits();
     updateFontBar();
+    window.__pondBooted();
 
     // Respect reduced-motion: draw one settled frame and start paused.
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -1480,12 +1512,18 @@
       renderFrame();
       loader.remove();
       running = false;
-      pauseBtn.textContent = '▶ Play';
+      pauseBtn.textContent = '[ play ]';
       controlsEl.classList.add('visible');
     } else {
       requestAnimationFrame(loop);
     }
-  })();
+  }
+  </script>
+
+  <script type="module" onerror="window.__pondFail()">
+    import * as THREE from 'three';
+    window.THREE = THREE;
+    startPond();
   </script>
 </body>
 </html>

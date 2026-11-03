@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>writing · paullew.is</title>
   <meta name="description" content="Writing by Paul Lewis — notes on software, product, and design.">
   <meta name="theme-color" content="#071c1a">
@@ -39,20 +39,21 @@
       --green:  #2db87a;
       --rule:   rgba(255,255,255,0.08);
       --mono:   Consolas, Menlo, 'SF Mono', monospace;
+      --prose:  'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, serif;
     }
 
     body {
       background: var(--bg);
       color: var(--fg);
       font-family: var(--mono);
-      font-size: 14px;
+      font-size: 15px;
       line-height: 1.75;
       -webkit-font-smoothing: antialiased;
       -webkit-tap-highlight-color: transparent;
     }
 
     .wrap {
-      max-width: 660px;
+      max-width: 700px;
       margin: 0 auto;
       padding: 3.2rem 1.4rem 6rem;
     }
@@ -135,6 +136,7 @@
 
     /* scrolling wave strip — same motif as the home page */
     .wave-wrap {
+      position: relative;
       width: 100%;
       overflow: hidden;
       margin-top: 1.1rem;
@@ -153,7 +155,23 @@
       from { transform: translateX(0); }
       to   { transform: translateX(-50%); }
     }
+    /* a koi crossing the wave strip, against the current */
+    .koi {
+      position: absolute;
+      top: 0;
+      left: -8ch;
+      font-size: 12px;
+      color: var(--accent);
+      opacity: 0.9;
+      white-space: pre;
+      animation: koi-swim 48s linear infinite;
+    }
+    @keyframes koi-swim {
+      from { transform: translateX(0); }
+      to   { transform: translateX(calc(100% + 100vw)); }
+    }
     @media (prefers-reduced-motion: reduce) {
+      .koi { animation: none; left: 2ch; }
       .wave { animation: none; }
       .dot-inner { animation: none; }
     }
@@ -182,7 +200,8 @@
       margin-top: 0.2rem;
     }
     .post-summary {
-      font-size: 12px;
+      font-family: var(--prose);
+      font-size: 15px;
       color: var(--fg-dim);
       margin-top: 0.35rem;
     }
@@ -252,6 +271,7 @@
     .md h3::before { content: '### '; color: var(--accent); opacity: 0.5; }
     .md h4 { font-size: 13px; color: var(--fg-dim); }
 
+    .md p, .md li, .md blockquote { font-family: var(--prose); font-size: 17px; line-height: 1.6; letter-spacing: 0; }
     .md p  { margin: 0 0 1.2rem; }
     .md a  {
       color: var(--accent);
@@ -263,7 +283,9 @@
 
     .md ul, .md ol { margin: 0 0 1.2rem 1.4rem; }
     .md li { margin-bottom: 0.3rem; }
-    .md ul li::marker { content: '· '; color: var(--accent); }
+    .md li > ul, .md li > ol { margin: 0.3rem 0 0.4rem 1.2rem; }
+    .md li > p { margin-bottom: 0.4rem; }
+    .md ul li::marker { content: '· '; color: var(--accent); font-family: var(--mono); }
     .md ol li::marker { color: var(--accent-dim); }
 
     .md blockquote {
@@ -347,17 +369,18 @@
 </head>
 <body>
   <nav id="sections-nav" aria-label="Sections">
-    <a class="nav-item" href="../index.html">/ home</a>
+    <a class="nav-item" href="/">/ home</a>
     <div class="nav-item">/ writing <span class="nav-here">here</span></div>
   </nav>
 
   <div class="wrap">
     <header>
-      <a class="back" href="../index.html" id="back-link">&larr; back home</a>
+      <a class="back" href="/" id="back-link">&larr; back home</a>
       <h1 class="page-title"><span class="slash">/</span> writing<span class="dot-paren">(</span><span class="dot-inner">_</span><span class="dot-paren">)</span></h1>
       <div class="wave-wrap" aria-hidden="true">
         <!-- doubled so the scroll loop is seamless -->
         <div class="wave" id="wave"></div>
+        <span class="koi">><(((°></span>
       </div>
     </header>
 
@@ -395,19 +418,22 @@
 
     const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
     const dotInners = document.querySelectorAll('.dot-inner');
+    const articleEl = document.getElementById('article');
     let dotIdx = 0;
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Slower than the home page, and still while an article is open so
+      // it doesn't tug at the eye while reading
       setInterval(() => {
+        if (articleEl.classList.contains('visible')) return;
         dotIdx = (dotIdx + 1) % DOT_CHARS.length;
         dotInners.forEach(el => el.textContent = DOT_CHARS[dotIdx]);
-      }, 80);
+      }, 260);
     }
 
     const listView    = document.getElementById('list-view');
     const listEl      = document.getElementById('post-list');
     const emptyEl     = document.getElementById('empty');
     const errorEl     = document.getElementById('error');
-    const articleEl   = document.getElementById('article');
     const articleBody = document.getElementById('article-body');
     const articleDate = document.getElementById('article-date');
     const backLink    = document.getElementById('back-link');
@@ -442,9 +468,11 @@
       return isNaN(d) ? iso : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     }
 
-    // Build list
-    if (!posts.length) emptyEl.hidden = false;
-    for (const p of posts) {
+    // Build list — drafts (draft: true) stay reachable by direct link for
+    // previewing but are never listed
+    const listed = posts.filter(p => !p.draft);
+    if (!listed.length) emptyEl.hidden = false;
+    for (const p of listed) {
       const li = document.createElement('li');
       const a  = document.createElement('a');
       a.href = '#/' + encodeURIComponent(p.slug);
@@ -492,7 +520,7 @@
       articleEl.classList.remove('visible');
       document.title = 'writing · paullew.is';
       backLink.textContent = '← back home';
-      backLink.href = '../index.html';
+      backLink.href = '/';
     }
 
     function route() {
