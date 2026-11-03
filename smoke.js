@@ -105,7 +105,7 @@ class Color { constructor(){this.r=0;this.g=0;this.b=0;}
   copy(){return this;} getHexString(){return '071c1a';} }
 class Obj { constructor(){ this.position=new V3(); this.rotation={x:0,y:0,z:0,order:''};
   this.scale=new V3(1,1,1); this.children=[]; this.visible=true; this.renderOrder=0; }
-  add(o){this.children.push(o);return this;} lookAt(){} }
+  add(o){this.children.push(o);return this;} lookAt(){} updateMatrixWorld(){} }
 function geo(n) { return {
   attributes: { position: { array: new Float32Array(n * 3) } },
   setAttribute() {},

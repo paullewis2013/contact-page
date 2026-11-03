@@ -33,11 +33,16 @@ blog/
    which is what made Chrome choppy. Splashes are the 3D ripple rings
    only, seen through the ASCII filter — there is no separate character
    overlay drawn on top of them.
-3. The page title, contact section, and `[?]` toggle are stamped into the same
-   character grid as the water each frame (`stampUI`) — there is no HTML
-   overlay UI at all. Invisible hit elements on top of the stamped cells
-   provide real links, clicks, hover, and keyboard focus; the contact
-   block expands inline under the title with a ripple burst in the pond.
+3. The page title, contact hint, and `[?]` toggle are stamped into the same
+   character grid as the water each frame (`stampUI`). Invisible hit
+   elements on top of the stamped cells provide real links, clicks, hover,
+   and keyboard focus. The contact block opens under the title, with a
+   ripple burst in the pond, as a small terminal-style window: its link
+   rows are real HTML laid onto the grid (selectable, copyable). A
+   hand-drawn layer (SVG ink plus notes in Caveat, from Google Fonts) draws
+   a loop around the hint and a note pointing at the email. Koi are steered
+   clear of the text and the notes by a keep-out zone projected from their
+   screen rectangle into the pond.
 4. The simulation runs on a fixed 60 Hz timestep decoupled from
    `requestAnimationFrame`, so it plays at the same speed on 60/120/144 Hz
    displays and doesn't stutter in Chrome/Safari the way per-frame DOM
