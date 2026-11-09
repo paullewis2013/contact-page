@@ -1,0 +1,26 @@
+# Paul Lewis
+
+> Paul Lewis is a fullstack engineer and product designer based in New York City. paullew.is is his personal site and the best place to find his contact details and profiles.
+
+He studied computer science at the University of Pittsburgh, with minors in music and Spanish. He speaks English and Spanish fluently and French conversationally, and runs a homelab in his spare time.
+
+## Skills
+
+- Frontend: TypeScript, JavaScript, React, Vite, Electron, Blazor, HTML, CSS
+- Backend: C#, .NET, Python, Node, Express, FastAPI, GraphQL, REST APIs, SQL, Postgres
+- Infrastructure: Docker, Linux, CI/CD, Proxmox, Tailscale, Caddy, DNS, TLS
+- Testing: pytest, NUnit, Playwright, Vitest
+
+## Site
+
+- [paullew.is](https://paullew.is/): Home page with contact details and links to profiles
+
+## Profiles
+
+- [LinkedIn](https://linkedin.com/in/paullewispgh): Work history and experience
+- [GitHub](https://github.com/paullewis2013): Code and open-source projects
+- [X](https://x.com/pel_dev): Posts as @pel_dev
+
+## Contact
+
+- [contact@paullew.is](mailto:contact@paullew.is): Email, the fastest way to reach Paul

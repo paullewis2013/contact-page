@@ -1,0 +1,18 @@
+# paullew.is — every crawler is welcome, including AI and LLM crawlers.
+
+User-agent: *
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://paullew.is/sitemap.xml

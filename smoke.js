@@ -69,6 +69,7 @@ global.document = {
   addEventListener(type, fn) { (listeners['document:' + type] ||= []).push(fn); },
   querySelectorAll() { return []; },
   body: { appendChild() {} },
+  documentElement: makeEl('html'),
   activeElement: null,
   hidden: false,
 };

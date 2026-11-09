@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-maintained: the site has no build step. Add a <url> entry for each
+     new page, and bump <lastmod> when a page's content changes. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://paullew.is/</loc>
+    <lastmod>2026-11-09</lastmod>
+  </url>
+</urlset>

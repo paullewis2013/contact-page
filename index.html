@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Mark that JS runs, before anything renders: the static content block
+       below is the visible page without JS, and screen-reader-only with it -->
+  <script>document.documentElement.classList.add('js')</script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Three.js, the only external dependency, as an ES module (the old UMD
        build/three.min.js was deprecated in r150 and removed after r160).
@@ -12,7 +15,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <title>paullew.is</title>
+  <title>Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC</title>
   <meta name="description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
   <meta name="theme-color" content="#071c1a">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -20,7 +23,7 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="canonical" href="https://paullew.is/">
   <meta property="og:site_name" content="paullew.is">
-  <meta property="og:title" content="paullew.is">
+  <meta property="og:title" content="Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC">
   <meta property="og:description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://paullew.is/">
@@ -30,9 +33,34 @@
   <meta property="og:image:alt" content="paullewis in ASCII art over a dark koi pond">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:site" content="@pel_dev">
-  <meta name="twitter:title" content="paullew.is">
+  <meta name="twitter:title" content="Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC">
   <meta name="twitter:description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
   <meta name="twitter:image" content="https://paullew.is/og-image.png">
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Paul Lewis",
+    "jobTitle": "Fullstack Engineer",
+    "url": "https://paullew.is/",
+    "email": "mailto:contact@paullew.is",
+    "image": "https://paullew.is/og-image.png",
+    "address": { "@type": "PostalAddress", "addressLocality": "New York", "addressRegion": "NY", "addressCountry": "US" },
+    "sameAs": [
+      "https://linkedin.com/in/paullewispgh",
+      "https://github.com/paullewis2013",
+      "https://x.com/pel_dev"
+    ],
+    "knowsAbout": [
+      "Full-stack development", "Product design", "TypeScript", "React", "C#", ".NET",
+      "Python", "GraphQL", "Simulation software", "Communications-based train control",
+      "Self-hosting"
+    ],
+    "knowsLanguage": ["English", "Spanish", "French"],
+    "alumniOf": { "@type": "CollegeOrUniversity", "name": "University of Pittsburgh", "url": "https://www.pitt.edu/" }
+  }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
@@ -244,6 +272,7 @@
     #contact-links .c-copy:hover { border-color: #e8903a; }
     #contact-links .c-copy.done  { border-color: rgba(45,184,122,0.6); }
 
+    html:not(.js) #loader { display: none; }
     #loader {
       position: fixed;
       inset: 0;
@@ -254,18 +283,21 @@
     }
     #loader.fade-out { opacity: 0; }
 
-    /* Static contact block — shown when JS is off (the noscript style in the
-       body) or when Three.js never arrives and the pond can't start. */
+    /* Static content: the page's real text (h1, about, links) in the served
+       HTML. It's the visible page when JS is off or the pond can't start
+       (.visible); while the pond runs it stays in the document for screen
+       readers and crawlers, visually hidden. */
     #fallback {
-      display: none;
       position: fixed;
       inset: 0;
       z-index: 50;
+      display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 0.55rem;
-      padding: 1rem;
+      gap: 1.6rem;
+      padding: 2rem 1rem;
+      overflow-y: auto;
       background: #071c1a;
       color: rgba(255,255,255,0.75);
       font-family: Consolas, Menlo, monospace;
@@ -273,10 +305,19 @@
       letter-spacing: 0.04em;
       text-align: center;
     }
-    #fallback.visible { display: flex; }
-    #fallback .fb-title { font-size: 18px; color: rgba(255,255,255,0.95); }
-    #fallback .fb-title .dot { color: #e8903a; }
-    #fallback .fb-role { color: rgba(255,255,255,0.45); margin-bottom: 0.9rem; }
+    html.js #fallback:not(.visible) {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+    }
+    #fallback main { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
+    #fallback .fb-brand { font-size: 12px; color: rgba(255,255,255,0.45); }
+    #fallback .fb-brand .dot { color: #e8903a; }
+    #fallback h1 { font-size: 20px; font-weight: normal; color: rgba(255,255,255,0.95); }
+    #fallback .fb-role { color: rgba(255,255,255,0.45); }
+    #fallback .fb-about { max-width: 34rem; margin: 0.9rem 0 0.4rem; line-height: 1.7; }
+    #fallback .fb-about h2 { font-size: 11px; font-weight: normal; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,144,58,0.8); margin-bottom: 0.5rem; }
+    #fallback nav ul { list-style: none; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+    #fallback footer { font-size: 11px; color: rgba(255,255,255,0.35); }
     #fallback a { color: rgba(255,255,255,0.75); text-decoration: none; padding: 0.2rem 0; transition: color 0.15s; }
     #fallback a .ci { color: rgba(232,144,58,0.7); }
     #fallback a:hover, #fallback a:hover .ci { color: #e8903a; }
@@ -284,16 +325,42 @@
 </head>
 <body>
   <div id="loader"></div>
-  <!-- Static contact block: what you get without JS, or if Three.js fails to load -->
+  <!-- The page's text content, in the served HTML for search engines, LLM
+       crawlers and screen readers. Visible without JS or if the pond fails to
+       start; visually hidden (not removed) while the pond runs. -->
   <div id="fallback">
-    <p class="fb-title">paullew<span class="dot">.</span>is</p>
-    <p class="fb-role">fullstack engineer · product &amp; design · NYC</p>
-    <a href="mailto:contact@paullew.is"><span class="ci">@ </span> contact@paullew.is</a>
-    <a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener"><span class="ci">in</span> linkedin.com/in/paullewispgh</a>
-    <a href="https://github.com/paullewis2013" target="_blank" rel="noopener"><span class="ci">gh</span> github.com/paullewis2013</a>
-    <a href="https://x.com/pel_dev" target="_blank" rel="noopener"><span class="ci">x </span> x.com/pel_dev</a>
+    <main>
+      <p class="fb-brand">paullew<span class="dot">.</span>is</p>
+      <h1>Paul Lewis</h1>
+      <p class="fb-role">Fullstack engineer · product &amp; design · NYC</p>
+
+      <section class="fb-about" aria-labelledby="about-heading">
+        <h2 id="about-heading">About</h2>
+        <p>
+          I'm Paul Lewis, a fullstack engineer and product designer based in New York.
+          I build digital-twin simulation software for communications-based train
+          control, used on rail projects around the world.
+          My usual stack is TypeScript and React on the front end, with C#, .NET,
+          Python and GraphQL behind it.
+          Recently I moved a legacy desktop simulator to a web platform with a GraphQL
+          API, and more than doubled a simulator's capacity through threading work.
+          Outside work I run a homelab on Proxmox, Docker and Tailscale.
+        </p>
+      </section>
+
+      <nav aria-label="Contact and profiles">
+        <ul>
+          <li><a href="mailto:contact@paullew.is"><span class="ci">@ </span> contact@paullew.is</a></li>
+          <li><a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener me"><span class="ci">in</span> linkedin.com/in/paullewispgh</a></li>
+          <li><a href="https://github.com/paullewis2013" target="_blank" rel="noopener me"><span class="ci">gh</span> github.com/paullewis2013</a></li>
+          <li><a href="https://x.com/pel_dev" target="_blank" rel="noopener me"><span class="ci">x </span> x.com/pel_dev</a></li>
+        </ul>
+      </nav>
+    </main>
+    <footer>
+      <p>© Paul Lewis · New York</p>
+    </footer>
   </div>
-  <noscript><style>#loader { display: none; } #fallback { display: flex; }</style></noscript>
   <canvas id="ascii" role="img" aria-label="An animated koi pond rendered in ASCII characters: koi drift among lily pads while ripples, rain, mist, and drifting petals pass over the water."></canvas>
   <!-- Interactive layer for the canvas-stamped title / hint / [?] -->
   <button class="hit" id="title-hit" aria-label="paullew.is — open contact"></button>
@@ -338,11 +405,19 @@
   (() => {
     let booted = false;
     const fallback = document.getElementById('fallback');
-    window.__pondBooted = () => { booted = true; fallback.classList.remove('visible'); };
+    // While the pond runs the static block is visually hidden, so its links
+    // leave the tab order (screen readers can still reach them)
+    const fbLinks = () => fallback.querySelectorAll('a');
+    window.__pondBooted = () => {
+      booted = true;
+      fallback.classList.remove('visible');
+      fbLinks().forEach(a => a.tabIndex = -1);
+    };
     window.__pondFail = () => {
       if (booted) return;
       const loader = document.getElementById('loader');
       if (loader) loader.remove();
+      fbLinks().forEach(a => a.removeAttribute('tabindex'));
       fallback.classList.add('visible');
     };
     // Module scripts have executed (or failed) by the time load fires; the

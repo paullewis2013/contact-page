@@ -6,10 +6,15 @@ Personal contact page — an ASCII-art koi pond rendered with Three.js and
 ## Structure
 
 ```
-index.html        home — the koi pond (Three.js via an import map; static contact
-                  block as the no-JS / CDN-down fallback)
+index.html        home — the koi pond (Three.js via an import map). The page's text
+                  (h1, about, links) is static HTML in #fallback: the visible page
+                  without JS or if the pond fails, screen-reader-only otherwise.
+                  Person JSON-LD in the head.
 pretext.js        canvas ASCII renderer (WebGL scene → coloured characters)
 favicon.svg
+robots.txt        allows all crawlers (AI crawlers named explicitly); points at the sitemap
+sitemap.xml       hand-maintained: add a <url> per new page (the blog isn't listed yet)
+llms.txt          markdown summary for LLMs (llmstxt.org); keep it in step with the about text
 .nojekyll         tells GitHub Pages to serve files verbatim (no Jekyll pass)
 og-image.png      link-preview card (OpenGraph/Twitter)
 apple-touch-icon.png / icon-*.png / site.webmanifest — home-screen icons
