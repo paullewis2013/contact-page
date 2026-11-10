@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Mark that JS runs, before anything renders: the static content block
+       below is the visible page without JS, and screen-reader-only with it -->
+  <script>document.documentElement.classList.add('js')</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Three.js r160 as an ES module, served from vendor/ so the page makes
+       no third-party requests. To upgrade, replace the file with the new
+       build/three.module.min.js from the three npm package. -->
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
+  <link rel="modulepreload" href="vendor/three.module.min.js">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC</title>
+  <meta name="description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
+  <!-- PREVIEW VARIANT of index.html (subway diagram instead of the koi pond). Not linked, not indexed. -->
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#071c1a">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="paullew.is">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://paullew.is/">
+  <meta property="og:site_name" content="paullew.is">
+  <meta property="og:title" content="Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC">
+  <meta property="og:description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://paullew.is/">
+  <meta property="og:image" content="https://paullew.is/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="paullewis in ASCII art over a dark koi pond">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@pel_dev">
+  <meta name="twitter:title" content="Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC">
+  <meta name="twitter:description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
+  <meta name="twitter:image" content="https://paullew.is/og-image.png">
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Paul Lewis",
+    "jobTitle": "Fullstack Engineer",
+    "url": "https://paullew.is/",
+    "email": "mailto:contact@paullew.is",
+    "image": "https://paullew.is/og-image.png",
+    "address": { "@type": "PostalAddress", "addressLocality": "New York", "addressRegion": "NY", "addressCountry": "US" },
+    "sameAs": [
+      "https://linkedin.com/in/paullewispgh",
+      "https://github.com/paullewis2013",
+      "https://x.com/pel_dev"
+    ],
+    "knowsAbout": [
+      "Full-stack development", "Product design", "TypeScript", "React", "C#", ".NET",
+      "Python", "GraphQL", "Simulation software", "Communications-based train control",
+      "Self-hosting"
+    ],
+    "knowsLanguage": ["English", "Spanish", "French"],
+    "alumniOf": { "@type": "CollegeOrUniversity", "name": "University of Pittsburgh", "url": "https://www.pitt.edu/" }
+  }
+  </script>
+  <style>
+    /* Caveat 600 (SIL OFL, see vendor/OFL-Caveat.txt), subset to the glyphs of
+       the two hand-written notes: "say hi!" and "fastest way to reach me".
+       Changing either note's wording means regenerating the subset. */
+    @font-face {
+      font-family: 'Caveat';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url(vendor/caveat-notes.woff2) format('woff2');
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #071c1a;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* The one and only render target */
+    #ascii {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh; /* track the visible viewport on mobile (iOS toolbars) */
+      z-index: 3;
+    }
+
+    /* Offscreen WebGL render target — tiny, never visible */
+    #glcanvas { display: none; }
+
+    /* Controls overlay (toggled with '?') */
+    #controls {
+      position: fixed;
+      bottom: 1.4rem;
+      left: 50%;
+      z-index: 6;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 1.2rem;
+      align-items: center;
+      background: rgba(7,28,26,0.92);
+      border: 1px solid rgba(232,144,58,0.28);
+      border-radius: 4px;
+      padding: 0.5rem 1.2rem;
+      font-family: Consolas, Menlo, monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.75);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #controls.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #controls button {
+      font: inherit;
+      letter-spacing: inherit;
+      border: none;
+      border-radius: 0;
+      padding: 0.2rem 0.3rem;
+      cursor: pointer;
+      background: none;
+      color: rgba(232,144,58,0.75);
+      transition: color 0.15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #controls button:hover { color: #e8903a; }
+
+    #fontBar {
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.45);
+      user-select: none;
+      cursor: pointer;
+    }
+    #fontBar { touch-action: none; } /* pointer-drag scrubbing on touch */
+
+    @media (max-width: 600px) {
+      #controls {
+        bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+        gap: 0.55rem;
+        padding: 0.45rem 0.85rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        border-radius: 4px;
+        max-width: calc(100vw - 1.6rem);
+        white-space: normal;
+      }
+      #controls button { min-height: 32px; padding: 0.2rem 0.65rem; }
+    }
+
+    /* ── Invisible hit targets over the canvas-stamped UI ─────────────────
+       The title, contact hint, and [?] toggle are drawn into the character
+       grid itself (see stampUI in the script); these transparent elements
+       sit on top of those cells to provide real click/hover/keyboard
+       semantics. Positioned from cell coordinates by positionHits(). */
+    .hit {
+      position: fixed;
+      z-index: 5;
+      background: transparent;
+      border: none;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      color: transparent;
+      font-size: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Contact link rows — HTML text dressed as stamped glyphs. Font size and
+       line height are set from the live grid metrics by positionHits(). */
+    #contact-links a, #contact-links button {
+      position: fixed;
+      z-index: 5;
+      font-family: Consolas, Menlo, monospace;
+      white-space: pre;
+      background: #071c1a; /* matches pt.bg — reads as cleared cells */
+      border: none;
+      padding: 0;
+      margin: 0;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      transition-delay: var(--d, 0s);
+    }
+    #contact-links.open a, #contact-links.open button { opacity: 1; }
+    #contact-links .c-row { color: rgba(255,255,255,0.75); }
+    #contact-links .c-row .ci { color: rgba(232,144,58,0.7); }
+    #contact-links .c-row:hover,
+    #contact-links .c-row:hover .ci { color: #e8903a; }
+    #contact-links .c-copy {
+      color: rgba(232,144,58,0.55);
+      width: 8ch;
+      text-align: right;
+      font-size: inherit;
+    }
+    #contact-links .c-copy:hover { color: #e8903a; }
+    #contact-links .c-copy.done  { color: #2db87a; }
+    #contact-links ::selection { background: rgba(232,144,58,0.35); }
+    #contact-links a:focus-visible, #contact-links button:focus-visible {
+      outline: 1px dashed rgba(232,144,58,0.8);
+      outline-offset: 2px;
+    }
+
+    .hit:focus-visible {
+      outline: 1px dashed rgba(232,144,58,0.8);
+      outline-offset: 3px;
+    }
+
+    /* Hand-drawn layer — ink loops, arrows and notes over the stamped UI,
+       placed from the same cell grid by positionHand() */
+    #hand { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+    #hand svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible;
+      filter: drop-shadow(0 0 2px #071c1a) drop-shadow(0 0 3px #071c1a); }
+    #hand .ink {
+      fill: none; stroke: #e8903a; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+      opacity: 0.85; stroke-dasharray: 1 2; stroke-dashoffset: 1; /* gap > path: no stray end-cap dot while hidden */
+      transition: stroke-dashoffset 0.25s ease;
+    }
+    #hand .note {
+      position: absolute; font-family: 'Caveat', cursive; font-weight: 600; font-size: 23px; line-height: 1;
+      color: rgba(232,144,58,0.95); white-space: nowrap; transform: rotate(-5deg);
+      text-shadow: 0 0 3px #071c1a, 0 0 6px #071c1a, 0 0 10px #071c1a;
+      opacity: 0; transition: opacity 0.2s ease;
+    }
+    #hand.hint-on .g-hint .ink, #hand.open-on .g-open .ink {
+      stroke-dashoffset: 0; transition: stroke-dashoffset 1.1s cubic-bezier(.6,.1,.3,1);
+    }
+    #hand.hint-on .g-hint .ink + .ink, #hand.open-on .g-open .ink + .ink { transition-delay: 0.7s; }
+    #hand.hint-on .note-hint, #hand.open-on .note-open { opacity: 1; transition: opacity 0.6s ease 1s; }
+    @media (prefers-reduced-motion: reduce) { #hand .ink, #hand .note { transition: none !important; } }
+
+    /* Contact dropdown as a terminal window. Rows stay real HTML on the grid;
+       the window sits behind them and replaces the stamped waves + role. */
+    #ct-win {
+      position: fixed; z-index: 4; pointer-events: none;
+      font-family: Consolas, Menlo, monospace;
+      background: #0a211f; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      box-shadow: 0 24px 60px -18px rgba(0,0,0,0.7);
+      opacity: 0; transform: translateY(-4px); transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    #ct-win.open { opacity: 1; transform: none; }
+    #ct-win .ct-bar {
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+      padding: 0 0.9em; border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.025); border-radius: 8px 8px 0 0;
+    }
+    #ct-win .ct-dots { display: flex; gap: 0.5em; }
+    #ct-win .ct-dots i { display: block; width: 0.8em; height: 0.8em; border-radius: 50%; background: rgba(255,255,255,0.14); }
+    #ct-win .ct-dots i:first-child { background: rgba(232,144,58,0.75); }
+    #ct-win .ct-dots i:last-child  { background: rgba(45,184,122,0.55); }
+    #ct-win .ct-url {
+      font-size: 0.95em; letter-spacing: 0.04em; color: rgba(255,255,255,0.5);
+      background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.08); border-radius: 5px;
+      padding: 0.05em 1.1em; white-space: nowrap;
+    }
+    #ct-win .ct-role { position: absolute; left: 0; right: 0; text-align: center; white-space: pre; color: rgba(255,255,255,0.85); }
+    #ct-win .ct-role span { color: rgba(255,255,255,0.35); }
+    /* rows sit on the window's panel now, not on cleared water cells */
+    #contact-links a, #contact-links button { background: transparent; }
+    /* copy as a pill */
+    #contact-links .c-copy {
+      border: 1px solid rgba(232,144,58,0.35); border-radius: 999px; text-align: center;
+      color: rgba(232,144,58,0.8); transition: opacity 0.2s ease, color 0.15s, border-color 0.15s;
+    }
+    #contact-links .c-copy:hover { border-color: #e8903a; }
+    #contact-links .c-copy.done  { border-color: rgba(45,184,122,0.6); }
+
+    /* Phones in portrait (html.sheet, set by positionHits): the contact
+       window docks to the bottom edge as a sheet with finger-sized rows,
+       laid out by CSS instead of on the character grid. #ct-win is sized
+       to match from the sheet's measured box. */
+    html.sheet #contact-links {
+      position: fixed; z-index: 5; left: 8px; right: 8px; bottom: 0;
+      max-width: 440px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr auto; align-items: center;
+      padding: 78px 18px calc(10px + env(safe-area-inset-bottom, 0px)) 30px;
+      font-family: Consolas, Menlo, monospace;
+      font-size: clamp(13px, 3.9vw, 15px);
+    }
+    html.sheet #contact-links[hidden] { display: none; }
+    html.sheet #contact-links a, html.sheet #contact-links button { position: static; }
+    html.sheet #contact-links .c-row {
+      height: 48px; line-height: 48px; overflow: hidden; text-overflow: ellipsis;
+    }
+    html.sheet #contact-links .c-row:not(#c-mail):not(#c-vcf) { grid-column: 1 / -1; }
+    html.sheet #contact-links .c-copy { height: 34px; line-height: 32px; font-size: 13px; }
+    html.sheet #ct-win {
+      border-radius: 14px 14px 0 0; border-bottom: none;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(.2,.8,.2,1), opacity 0s 0.3s;
+    }
+    html.sheet #ct-win.open { transform: none; transition-delay: 0s; }
+    html.sheet #ct-win .ct-bar { border-radius: 14px 14px 0 0; padding-left: 2.6em; }
+    html.sheet-open #controls { display: none; }
+    @media (prefers-reduced-motion: reduce) { html.sheet #ct-win { transition: none; } }
+
+    html:not(.js) #loader { display: none; }
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #071c1a;
+      pointer-events: none;
+      transition: opacity 0.8s ease;
+    }
+    #loader.fade-out { opacity: 0; }
+
+    /* Static content: the page's real text (h1, about, links) in the served
+       HTML. It's the visible page when JS is off or the pond can't start
+       (.visible); while the pond runs it stays in the document for screen
+       readers and crawlers, visually hidden. */
+    #fallback {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.6rem;
+      padding: 2rem 1rem;
+      overflow-y: auto;
+      background: #071c1a;
+      color: rgba(255,255,255,0.75);
+      font-family: Consolas, Menlo, monospace;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+    html.js #fallback:not(.visible) {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+    }
+    #fallback main { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
+    #fallback .fb-brand { font-size: 12px; color: rgba(255,255,255,0.45); }
+    #fallback .fb-brand .dot { color: #e8903a; }
+    #fallback h1 { font-size: 20px; font-weight: normal; color: rgba(255,255,255,0.95); }
+    #fallback .fb-role { color: rgba(255,255,255,0.45); }
+    #fallback .fb-about { max-width: 34rem; margin: 0.9rem 0 0.4rem; line-height: 1.7; }
+    #fallback .fb-about h2 { font-size: 11px; font-weight: normal; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(232,144,58,0.8); margin-bottom: 0.5rem; }
+    #fallback nav ul { list-style: none; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+    #fallback footer { font-size: 11px; color: rgba(255,255,255,0.35); }
+    #fallback a { color: rgba(255,255,255,0.75); text-decoration: none; padding: 0.2rem 0; transition: color 0.15s; }
+    #fallback a .ci { color: rgba(232,144,58,0.7); }
+    #fallback a:hover, #fallback a:hover .ci { color: #e8903a; }
+  </style>
+</head>
+<body>
+  <div id="loader"></div>
+  <!-- The page's text content, in the served HTML for search engines, LLM
+       crawlers and screen readers. Visible without JS or if the pond fails to
+       start; visually hidden (not removed) while the pond runs. -->
+  <div id="fallback">
+    <main>
+      <p class="fb-brand">paullew<span class="dot">.</span>is</p>
+      <h1>Paul Lewis</h1>
+      <p class="fb-role">Fullstack engineer · product &amp; design · NYC</p>
+
+      <section class="fb-about" aria-labelledby="about-heading">
+        <h2 id="about-heading">About</h2>
+        <p>
+          I'm Paul Lewis, a fullstack engineer and product designer based in New York.
+          I build digital-twin simulation software for communications-based train
+          control, used on rail projects around the world.
+          My usual stack is TypeScript and React on the front end, with C#, .NET,
+          Python and GraphQL behind it.
+          Recently I moved a legacy desktop simulator to a web platform with a GraphQL
+          API, and more than doubled a simulator's capacity through threading work.
+          Outside work I run a homelab on Proxmox, Docker and Tailscale.
+        </p>
+      </section>
+
+      <nav aria-label="Contact and profiles">
+        <ul>
+          <li><a href="mailto:contact@paullew.is"><span class="ci">@ </span> contact@paullew.is</a></li>
+          <li><a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener me"><span class="ci">in</span> linkedin.com/in/paullewispgh</a></li>
+          <li><a href="https://github.com/paullewis2013" target="_blank" rel="noopener me"><span class="ci">gh</span> github.com/paullewis2013</a></li>
+          <li><a href="https://x.com/pel_dev" target="_blank" rel="noopener me"><span class="ci">x </span> x.com/pel_dev</a></li>
+          <li><a href="paul-lewis.vcf" type="text/vcard"><span class="ci">+ </span> save contact</a></li>
+        </ul>
+      </nav>
+    </main>
+    <footer>
+      <p>© Paul Lewis · New York</p>
+    </footer>
+  </div>
+  <canvas id="ascii" role="img" aria-label="An animated subway map rendered in ASCII characters: trains run along coloured lines and stop at stations."></canvas>
+  <!-- Interactive layer for the canvas-stamped title / hint / [?] -->
+  <button class="hit" id="title-hit" aria-label="paullew.is — open contact"></button>
+  <button class="hit" id="hint-hit" aria-label="Open contact"></button>
+  <button class="hit" id="ctl-hit" aria-label="Toggle controls"></button>
+
+  <!-- Contact link rows: real HTML text (selectable, copyable, right-clickable)
+       positioned and sized to match the character grid exactly -->
+  <!-- Contact window chrome, positioned on the grid by positionHits() -->
+  <div id="ct-win" aria-hidden="true">
+    <div class="ct-bar"><span class="ct-dots"><i></i><i></i><i></i></span><span class="ct-url">paullew.is/contact</span><span></span></div>
+    <div class="ct-role">fullstack engineer<span> · product &amp; design · NYC</span></div>
+  </div>
+  <div id="contact-links" hidden>
+    <a class="c-row" id="c-mail" href="mailto:contact@paullew.is" style="--d:0.17s"><span class="ci">@ </span> <span id="c-mail-t">contact@paullew.is</span></a>
+    <button class="c-copy" id="c-copy" style="--d:0.17s" aria-label="Copy email address">copy</button>
+    <a class="c-row" id="c-li" href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener" style="--d:0.25s"><span class="ci">in</span> linkedin.com/in/paullewispgh</a>
+    <a class="c-row" id="c-gh" href="https://github.com/paullewis2013" target="_blank" rel="noopener" style="--d:0.33s"><span class="ci">gh</span> github.com/paullewis2013</a>
+    <a class="c-row" id="c-x" href="https://x.com/pel_dev" target="_blank" rel="noopener" style="--d:0.41s"><span class="ci">x </span> x.com/pel_dev</a>
+    <!-- No download attribute: iOS then opens the card in Contacts instead of saving a file -->
+    <a class="c-row" id="c-vcf" href="paul-lewis.vcf" type="text/vcard" style="--d:0.49s"><span class="ci">+ </span> save contact</a>
+    <button class="c-copy" id="c-share" style="--d:0.49s" aria-label="Share this page" hidden>share</button>
+  </div>
+
+  <!-- Hand-drawn notes over the stamped UI -->
+  <div id="hand" aria-hidden="true">
+    <svg>
+      <g class="g-hint"><path class="ink" id="hd-hint-loop" pathLength="1"/><path class="ink" id="hd-hint-arrow" pathLength="1"/></g>
+      <g class="g-open"><path class="ink" id="hd-open-under" pathLength="1"/><path class="ink" id="hd-open-arrow" pathLength="1"/></g>
+    </svg>
+    <div class="note note-hint" id="hd-hint-note">say hi!</div>
+    <div class="note note-open" id="hd-open-note">fastest way to reach me</div>
+  </div>
+  <canvas id="glcanvas"></canvas>
+  <div id="controls">
+    <span id="fontBar" title="Drag to change character size"></span>
+    <button id="pauseBtn">[ pause ]</button>
+  </div>
+
+  <!-- Boot guard. Three.js is imported by the module script at the bottom of
+       the page; if it never arrives or the pond throws during startup (no
+       WebGL, say), the static contact block takes over instead of leaving a
+       dark screen. __pondLost does the same for a pond that died later. -->
+  <script>
+  (() => {
+    let booted = false;
+    const fallback = document.getElementById('fallback');
+    // While the pond runs the static block is visually hidden, so its links
+    // leave the tab order (screen readers can still reach them)
+    const fbLinks = () => fallback.querySelectorAll('a');
+    window.__pondBooted = () => {
+      booted = true;
+      fallback.classList.remove('visible');
+      fbLinks().forEach(a => a.tabIndex = -1);
+    };
+    window.__pondFail = () => {
+      if (booted) return;
+      const loader = document.getElementById('loader');
+      if (loader) loader.remove();
+      fbLinks().forEach(a => a.removeAttribute('tabindex'));
+      fallback.classList.add('visible');
+    };
+    window.__pondLost = () => { booted = false; window.__pondFail(); };
+    // Module scripts have executed (or failed) by the time load fires; the
+    // timer covers a request that hangs instead of failing.
+    window.addEventListener('load', () => { if (!booted) window.__pondFail(); });
+    setTimeout(() => { if (!booted) window.__pondFail(); }, 8000);
+  })();
+  </script>
+
+  <!-- Perlin / Simplex noise (public domain — josephg/noisejs) -->
+  <script>
+  (function(global){var module=global.noise={};function Grad(x,y,z){this.x=x;this.y=y;this.z=z}Grad.prototype.dot2=function(x,y){return this.x*x+this.y*y};Grad.prototype.dot3=function(x,y,z){return this.x*x+this.y*y+this.z*z};var grad3=[new Grad(1,1,0),new Grad(-1,1,0),new Grad(1,-1,0),new Grad(-1,-1,0),new Grad(1,0,1),new Grad(-1,0,1),new Grad(1,0,-1),new Grad(-1,0,-1),new Grad(0,1,1),new Grad(0,-1,1),new Grad(0,1,-1),new Grad(0,-1,-1)];var p=[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];var perm=new Array(512);var gradP=new Array(512);module.seed=function(seed){if(seed>0&&seed<1){seed*=65536}seed=Math.floor(seed);if(seed<256){seed|=seed<<8}for(var i=0;i<256;i++){var v;if(i&1){v=p[i]^(seed&255)}else{v=p[i]^((seed>>8)&255)}perm[i]=perm[i+256]=v;gradP[i]=gradP[i+256]=grad3[v%12]}};module.seed(0);module.simplex3=function(xin,yin,zin){var n0,n1,n2,n3;var F3=1/3;var s=(xin+yin+zin)*F3;var i=Math.floor(xin+s);var j=Math.floor(yin+s);var k=Math.floor(zin+s);var G3=1/6;var t=(i+j+k)*G3;var X0=i-t;var Y0=j-t;var Z0=k-t;var x0=xin-X0;var y0=yin-Y0;var z0=zin-Z0;var i1,j1,k1;var i2,j2,k2;if(x0>=y0){if(y0>=z0){i1=1;j1=0;k1=0;i2=1;j2=1;k2=0}else if(x0>=z0){i1=1;j1=0;k1=0;i2=1;j2=0;k2=1}else{i1=0;j1=0;k1=1;i2=1;j2=0;k2=1}}else{if(y0<z0){i1=0;j1=0;k1=1;i2=0;j2=1;k2=1}else if(x0<z0){i1=0;j1=1;k1=0;i2=0;j2=1;k2=1}else{i1=0;j1=1;k1=0;i2=1;j2=1;k2=0}}var x1=x0-i1+G3;var y1=y0-j1+G3;var z1=z0-k1+G3;var x2=x0-i2+2*G3;var y2=y0-j2+2*G3;var z2=z0-k2+2*G3;var x3=x0-1+3*G3;var y3=y0-1+3*G3;var z3=z0-1+3*G3;i&=255;j&=255;k&=255;var gi0=gradP[i+perm[j+perm[k]]];var gi1=gradP[i+i1+perm[j+j1+perm[k+k1]]];var gi2=gradP[i+i2+perm[j+j2+perm[k+k2]]];var gi3=gradP[i+1+perm[j+1+perm[k+1]]];var t0=0.6-x0*x0-y0*y0-z0*z0;if(t0<0){n0=0}else{t0*=t0;n0=t0*t0*gi0.dot3(x0,y0,z0)}var t1=0.6-x1*x1-y1*y1-z1*z1;if(t1<0){n1=0}else{t1*=t1;n1=t1*t1*gi1.dot3(x1,y1,z1)}var t2=0.6-x2*x2-y2*y2-z2*z2;if(t2<0){n2=0}else{t2*=t2;n2=t2*t2*gi2.dot3(x2,y2,z2)}var t3=0.6-x3*x3-y3*y3-z3*z3;if(t3<0){n3=0}else{t3*=t3;n3=t3*t3*gi3.dot3(x3,y3,z3)}return 32*(n0+n1+n2+n3)};module.simplex2=function(xin,yin){var n0,n1,n2;var F2=0.5*(Math.sqrt(3)-1);var s=(xin+yin)*F2;var i=Math.floor(xin+s);var j=Math.floor(yin+s);var G2=(3-Math.sqrt(3))/6;var t=(i+j)*G2;var X0=i-t;var Y0=j-t;var x0=xin-X0;var y0=yin-Y0;var i1,j1;if(x0>y0){i1=1;j1=0}else{i1=0;j1=1}var x1=x0-i1+G2;var y1=y0-j1+G2;var x2=x0-1+2*G2;var y2=y0-1+2*G2;i&=255;j&=255;var gi0=gradP[i+perm[j]];var gi1=gradP[i+i1+perm[j+j1]];var gi2=gradP[i+1+perm[j+1]];var t0=0.5-x0*x0-y0*y0;if(t0<0){n0=0}else{t0*=t0;n0=t0*t0*gi0.dot2(x0,y0)}var t1=0.5-x1*x1-y1*y1;if(t1<0){n1=0}else{t1*=t1;n1=t1*t1*gi1.dot2(x1,y1)}var t2=0.5-x2*x2-y2*y2;if(t2<0){n2=0}else{t2*=t2;n2=t2*t2*gi2.dot2(x2,y2)}return 70*(n0+n1+n2)};})(this);
+  </script>
+
+  <!-- Pretext library -->
+  <script src="pretext.js"></script>
+
+  <script>
+  // Everything below runs once Three.js has been imported (see the module
+  // script at the bottom of the page).
+  function startPond() {
+    'use strict';
+
+    // ── Sizing ───────────────────────────────────────────────────────────────
+    // Phones get smaller characters than desktop. A narrow screen only fits
+    // ~70 columns at 9px, too few for a koi to read as a koi; 7px gives ~90.
+    // (The slow-frame adaptation further down steps this back up if needed.)
+    const smallScreen = () => window.innerWidth < 700;
+    // Touch-target sizing keys off pointer type, not width — a phone in
+    // landscape is 800+px wide but still needs finger-sized targets.
+    const coarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
+    const baseFontSize = () => (smallScreen() ? 7 : 10);
+
+    // Cap the canvas backing store (~9 MP) and the pixel ratio: crisp text
+    // without letting a 4K/retina display quadruple the per-frame fill cost.
+    const dpr = () => {
+      const raw       = Math.min(window.devicePixelRatio || 1, 2);
+      const maxByArea = Math.sqrt(9e6 / (window.innerWidth * window.innerHeight));
+      return Math.max(1, Math.min(raw, maxByArea));
+    };
+
+    // Hard ceiling on cell count — the per-frame sprite-blit budget. On very
+    // large windows the effective font size is raised until the grid fits.
+    const MAX_CELLS = 33000;
+
+    let fontSize = baseFontSize();
+    let cols, rows;
+
+    function charGrid(px) {
+      let c, r;
+      for (;;) {
+        c = Math.max(20, Math.floor(window.innerWidth  / (px * 0.6)));
+        r = Math.max(12, Math.floor(window.innerHeight / (px * 1.15)));
+        if (c * r <= MAX_CELLS) break;
+        px++;
+      }
+      return { cols: c, rows: r, px };
+    }
+
+    // ── Canvases ─────────────────────────────────────────────────────────────
+    const asciiCanvas = document.getElementById('ascii');
+    const asciiCtx    = asciiCanvas.getContext('2d');
+    const glCanvas    = document.getElementById('glcanvas');
+
+    function sizeAsciiCanvas() {
+      const r = dpr();
+      asciiCanvas.width  = Math.round(window.innerWidth  * r);
+      asciiCanvas.height = Math.round(window.innerHeight * r);
+    }
+
+    // ── Three.js ─────────────────────────────────────────────────────────────
+    const scene    = new THREE.Scene();
+    const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false });
+
+    // ── WebGL context loss ──────────────────────────────────────────────────
+    // Mobile browsers drop a background tab's GL context. Three.js rebuilds
+    // its own state when the browser hands the context back; until then the
+    // loop holds the last ASCII frame instead of painting blank water. If the
+    // context still hasn't returned a few seconds into the page being
+    // visible, reload once; if that was already tried, show the static page.
+    let glLost = false, glLostTimer = 0;
+    function glWatchdog() {
+      clearTimeout(glLostTimer);
+      if (!glLost || document.hidden) return;
+      glLostTimer = setTimeout(() => {
+        if (!glLost) return;
+        let last = 0, marked = false;
+        try {
+          last = +sessionStorage.getItem('pondReload') || 0;
+          sessionStorage.setItem('pondReload', String(Date.now()));
+          marked = true;
+        } catch {}
+        // Without storage there's no way to tell a reload loop from a first try
+        if (marked && Date.now() - last > 60000) location.reload();
+        else { running = false; window.__pondLost(); }
+      }, 4000);
+    }
+    glCanvas.addEventListener('webglcontextlost', e => {
+      e.preventDefault();
+      glLost = true;
+      glWatchdog();
+    });
+    glCanvas.addEventListener('webglcontextrestored', () => {
+      glLost = false;
+      clearTimeout(glLostTimer);
+      if (running) { lastTime = performance.now(); accumulator = 0; }
+      else renderFrame();
+    });
+    document.addEventListener('visibilitychange', glWatchdog);
+
+    // The WebGL scene only ever gets sampled down to the character grid, so
+    // render it at 2× grid resolution instead of full window resolution.
+    // This is the single biggest performance win vs the old version.
+    function sizeRenderer() {
+      renderer.setSize(cols * 2, rows * 2, false);
+    }
+
+    const isPortrait = () => window.innerHeight > window.innerWidth;
+    // Portrait viewports get a wider FOV — at 45° a phone would only see
+    // ~±14 world units of water horizontally and most of the scene would
+    // play out off-screen.
+    const viewFov = () => (isPortrait() ? 60 : 45);
+
+    const camera = new THREE.PerspectiveCamera(viewFov(), window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.rotation.order = 'YXZ';
+
+    // WORLD — the visible extent of the water at the settled camera, plus a
+    // small margin. Everything that positions itself in the pond (fish
+    // bounds, lily pads, rain, mist) scales to these so the whole
+    // scene stays on screen at any aspect ratio.
+    const WORLD = {
+      bx: 42, bz: 34,
+      recompute() {
+        const cam   = isPortrait() ? { y: 72, z: 10 } : { y: 58, z: 22 }; // camEndPosition
+        const dist  = Math.hypot(cam.y, cam.z);
+        const halfV = Math.tan((viewFov() / 2) * Math.PI / 180) * dist;
+        const halfH = halfV * (window.innerWidth / window.innerHeight);
+        this.bx = Math.max(16, halfH * 1.05);
+        this.bz = Math.max(14, halfV * 1.05);
+      },
+    };
+    WORLD.recompute();
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
+
+    noise.seed(Math.random());
+
+    // ── SUBWAY DIAGRAM (preview variant — replaces the koi pond scene) ──────
+    // An abstract transit map: coloured routes on 0/45/90° runs, stations,
+    // interchanges where routes cross, and trains that brake into each stop,
+    // dwell, and hold back from the train ahead. It keeps the pond module's
+    // interface (and its name) so the rest of the page is untouched.
+    const FISH = (() => {
+      const net = new THREE.Group(); // the whole map, scaled to the viewport
+      const LINE_W = 1.5, PLATE_Y = 0.9;
+      const CAR_L = 2.3, CAR_W = 2.3, CAR_PITCH = 2.7, TRAIN_L = CAR_PITCH * 3;
+      const VMAX = 0.22, ACC = 0.004; // map units per frame, per frame²
+      // Route polylines in map units: x → right, z → down the screen. They
+      // run past every edge of the view, so trains enter and leave off-screen.
+      const ROUTES = [
+        { c: 0x2f6fe4, p: [[-64,-30],[-34,-30],[-22,-18],[-22,20],[-34,32],[-34,74]] },         // blue
+        { c: 0xee352e, p: [[-12,-74],[-12,34],[0,46],[0,74]] },                                   // red
+        { c: 0x00a650, p: [[12,-74],[12,-44],[18,-38],[18,8],[12,14],[12,26],[26,40],[64,40]] },  // green
+        { c: 0xfccc0a, p: [[-64,12],[-8,12],[6,-2],[32,-2],[44,-14],[44,-74]] },                  // yellow
+        { c: 0xb933ad, p: [[-64,-10],[24,-10],[36,-22],[64,-22]] },                               // purple
+        { c: 0xa7a9ac, p: [[-64,28],[30,28],[40,18],[64,18]] },                                   // grey
+        { c: 0xff6319, p: [[30,-74],[30,-34],[6,-10],[6,18],[-4,28],[-4,74]] },                   // orange
+        { c: 0x6cbe45, p: [[64,6],[50,6],[36,20],[36,74]] },                                      // lime
+        { c: 0x996633, p: [[-64,-48],[-2,-48],[8,-58],[64,-58]] },                                // brown
+        { c: 0x00add0, p: [[-64,54],[20,54],[30,64],[64,64]] },                                   // teal
+      ];
+      const RIVERS = [ // [width, points]
+        [9, [[-46,-110],[-44,-40],[-48,0],[-54,40],[-50,110]]],
+        [8, [[40,-110],[36,-60],[26,-26],[24,4],[30,36],[44,70],[48,110]]],
+      ];
+
+      const routes = [], stations = [], pulses = [];
+      let plate = null, frame = [], k = 1;
+      const _v = new THREE.Vector3();
+
+      function sample(r, s) { // point and heading at distance s along a route
+        s = Math.max(0, Math.min(r.len, s));
+        for (const g of r.segs) {
+          if (s <= g.s0 + g.len) {
+            const t = (s - g.s0) / g.len;
+            return { x: g.x0 + (g.x1 - g.x0) * t, z: g.z0 + (g.z1 - g.z0) * t, ang: g.ang };
+          }
+        }
+        const g = r.segs[r.segs.length - 1];
+        return { x: g.x1, z: g.z1, ang: g.ang };
+      }
+
+      function cross(a, b) { // where two segments meet, with the distance along each route
+        const ax = a.x1 - a.x0, az = a.z1 - a.z0, bx = b.x1 - b.x0, bz = b.z1 - b.z0;
+        const d = ax * bz - az * bx;
+        if (Math.abs(d) < 1e-6) return null;
+        const t = ((b.x0 - a.x0) * bz - (b.z0 - a.z0) * bx) / d;
+        const u = ((b.x0 - a.x0) * az - (b.z0 - a.z0) * ax) / d;
+        if (t < -1e-6 || t > 1 + 1e-6 || u < -1e-6 || u > 1 + 1e-6) return null;
+        return { x: a.x0 + ax * t, z: a.z0 + az * t, sa: a.s0 + a.len * t, sb: b.s0 + b.len * u };
+      }
+
+      function addStop(r, s) { if (!r.stops.some(q => Math.abs(q - s) < 1)) r.stops.push(s); }
+      function addStation(x, z, big) {
+        const near = stations.find(st => Math.hypot(st.x - x, st.z - z) < 1.5);
+        if (near) { near.big = near.big || big; return; }
+        stations.push({ x, z, big });
+      }
+
+      function pulse(x, z, max, life) {
+        const p = pulses.find(p => !p.on);
+        if (!p) return;
+        p.on = true; p.life = 0; p.max = max; p.maxLife = life;
+        p.mesh.position.set(x, 0.6, z);
+        p.mesh.visible = true;
+      }
+
+      // Land with a little noise for texture, two rivers, one long park
+      function makeGround() {
+        const S = 512, R = 110; // texture px; half-extent in map units
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = S;
+        const g = cv.getContext('2d');
+        const img = g.createImageData(S, S);
+        for (let y = 0; y < S; y++) {
+          for (let x = 0; x < S; x++) {
+            const wx = (x / S * 2 - 1) * R, wz = (y / S * 2 - 1) * R;
+            const n = noise.simplex2(wx * 0.045, wz * 0.045) * 0.6 + noise.simplex2(wx * 0.16, wz * 0.16) * 0.4;
+            const l = 1 + n * 0.38, i = (y * S + x) * 4;
+            img.data[i] = 12 * l; img.data[i + 1] = 40 * l; img.data[i + 2] = 37 * l; img.data[i + 3] = 255;
+          }
+        }
+        g.putImageData(img, 0, 0);
+        const P = v => (v / R * 0.5 + 0.5) * S;
+        g.lineCap = g.lineJoin = 'round';
+        g.strokeStyle = 'rgb(9,22,52)';
+        for (const [w, pts] of RIVERS) {
+          g.lineWidth = w / (2 * R) * S;
+          g.beginPath();
+          pts.forEach(([x, z], i) => (i ? g.lineTo(P(x), P(z)) : g.moveTo(P(x), P(z))));
+          g.stroke();
+        }
+        g.fillStyle = 'rgb(12,58,24)';
+        g.fillRect(P(-8), P(-40), P(2) - P(-8), P(-16) - P(-40));
+        const tex = new THREE.CanvasTexture(cv);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, 2 * R), new THREE.MeshBasicMaterial({ map: tex }));
+        m.rotation.x = -Math.PI / 2;
+        m.position.y = -0.2;
+        net.add(m);
+      }
+
+      function build() {
+        // Routes → segments. Every other route runs the opposite way.
+        ROUTES.forEach((def, i) => {
+          const pts = i % 2 ? def.p.slice().reverse() : def.p;
+          const r = { color: def.c, segs: [], len: 0, stops: [], trains: [] };
+          for (let j = 0; j < pts.length - 1; j++) {
+            const [x0, z0] = pts[j], [x1, z1] = pts[j + 1];
+            const len = Math.hypot(x1 - x0, z1 - z0);
+            r.segs.push({ x0, z0, x1, z1, len, ang: Math.atan2(-(z1 - z0), x1 - x0), s0: r.len });
+            r.len += len;
+          }
+          routes.push(r);
+        });
+        // Interchanges wherever two routes meet
+        for (let a = 0; a < routes.length; a++) {
+          for (let b = a + 1; b < routes.length; b++) {
+            for (const ga of routes[a].segs) for (const gb of routes[b].segs) {
+              const p = cross(ga, gb);
+              if (!p) continue;
+              addStop(routes[a], p.sa);
+              addStop(routes[b], p.sb);
+              addStation(p.x, p.z, true);
+            }
+          }
+        }
+        // Ordinary stops in between
+        routes.forEach(r => {
+          for (let s = 6; s < r.len - 3; s += 11) {
+            if (r.stops.some(q => Math.abs(q - s) < 5.5)) continue;
+            r.stops.push(s);
+            const p = sample(r, s);
+            addStation(p.x, p.z, false);
+          }
+          r.stops.sort((a, b) => a - b);
+        });
+
+        // Meshes
+        const boxGeo  = new THREE.BoxGeometry(1, 0.05, 1);
+        const discGeo = new THREE.CircleGeometry(1, 20);
+        const flat = (geo, mat, x, y, z, r) => {
+          const m = new THREE.Mesh(geo, mat);
+          m.rotation.x = -Math.PI / 2;
+          m.scale.set(r, r, 1);
+          m.position.set(x, y, z);
+          net.add(m);
+          return m;
+        };
+        routes.forEach((r, i) => {
+          const mat = new THREE.MeshBasicMaterial({ color: r.color });
+          const y = 0.02 + i * 0.012; // each route on its own level: no flicker at crossings
+          r.segs.forEach(g => {
+            const m = new THREE.Mesh(boxGeo, mat);
+            m.scale.set(g.len, 1, LINE_W);
+            m.position.set((g.x0 + g.x1) / 2, y, (g.z0 + g.z1) / 2);
+            m.rotation.y = g.ang;
+            net.add(m);
+            flat(discGeo, mat, g.x1, y + 0.03, g.z1, LINE_W / 2); // round the bend
+          });
+        });
+        const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const dark  = new THREE.MeshBasicMaterial({ color: 0x030a09 });
+        stations.forEach(st => {
+          // Ordinary stop: a dark pip in the line. Interchange: a white ring.
+          // That leaves the trains as the only white things that move.
+          if (st.big) { flat(discGeo, white, st.x, 0.3, st.z, 1.9); flat(discGeo, dark, st.x, 0.34, st.z, 1.0); }
+          else flat(discGeo, dark, st.x, 0.3, st.z, 0.6);
+        });
+        const carGeo = new THREE.BoxGeometry(1, 0.2, 1);
+        routes.forEach(r => {
+          const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(r.color).lerp(new THREE.Color(0xffffff), 0.8) });
+          const n = r.len > 150 ? 3 : 2;
+          for (let t = 0; t < n; t++) {
+            const cars = [0, 1, 2].map(() => {
+              const m = new THREE.Mesh(carGeo, mat);
+              m.scale.set(CAR_L, 1, CAR_W);
+              net.add(m);
+              return m;
+            });
+            const s = (t + Math.random() * 0.5) * r.len / n;
+            r.trains.push({ s, v: 0, dwell: 0, next: r.stops.findIndex(q => q > s + 0.5), cars });
+          }
+        });
+        const ringGeo = new THREE.RingGeometry(1, 1.3, 32);
+        for (let i = 0; i < 28; i++) {
+          const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide });
+          const mesh = flat(ringGeo, mat, 0, 0.6, 0, 1);
+          mesh.visible = false;
+          pulses.push({ on: false, life: 0, max: 1, maxLife: 1, mesh, mat });
+        }
+      }
+
+      function applyScale() {
+        k = Math.max(0.66, Math.min(1, WORLD.bx / 30));
+        net.scale.setScalar(k);
+      }
+
+      return {
+        init() {
+          renderer.setClearColor(0x071c1a);
+          makeGround();
+          build();
+          scene.add(net);
+          // The title sits on a framed black sign, placed over the map from
+          // the text's screen rectangle (setKeepOut)
+          const signGeo = new THREE.BoxGeometry(1, 0.02, 1);
+          const edgeMat = new THREE.MeshBasicMaterial({ color: 0x9aa6a3 });
+          plate = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+          frame = [0, 1, 2, 3].map(() => new THREE.Mesh(signGeo, edgeMat));
+          [plate, ...frame].forEach(m => { m.visible = false; scene.add(m); });
+          applyScale();
+        },
+
+        update(f) {
+          routes.forEach(r => {
+            const n = r.trains.length, END = r.len + 20;
+            r.trains.forEach((t, i) => {
+              if (t.dwell > 0) {
+                t.dwell--;
+              } else {
+                const hasStop = t.next >= 0 && t.next < r.stops.length;
+                let room = (hasStop ? r.stops[t.next] : END + 10) - t.s;
+                if (n > 1) { // hold back from the train ahead
+                  let gap = r.trains[(i + 1) % n].s - t.s;
+                  if (gap <= 0) gap += END + TRAIN_L;
+                  room = Math.min(room, gap - TRAIN_L - 4);
+                }
+                const want = Math.min(VMAX, Math.sqrt(2 * ACC * Math.max(0, room)));
+                t.v = Math.max(0, t.v + Math.max(-ACC * 1.5, Math.min(ACC, want - t.v)));
+                t.s += t.v;
+                if (hasStop && r.stops[t.next] - t.s < 0.08 && t.v < 0.03) {
+                  t.s = r.stops[t.next];
+                  t.v = 0;
+                  t.dwell = 60 + Math.floor(Math.random() * 70);
+                  t.next++;
+                  const p = sample(r, t.s);
+                  pulse(p.x, p.z, 3.4, 42);
+                }
+                if (t.s > END) { t.s = -TRAIN_L; t.next = 0; } // off the far edge: come back in at the start
+              }
+              t.cars.forEach((m, j) => {
+                const p = sample(r, t.s - j * CAR_PITCH);
+                m.position.set(p.x, 0.5, p.z);
+                m.rotation.y = p.ang;
+              });
+            });
+          });
+          pulses.forEach(p => {
+            if (!p.on) return;
+            const t = ++p.life / p.maxLife;
+            const sc = 0.6 + (p.max - 0.6) * t;
+            p.mesh.scale.set(sc, sc, 1);
+            p.mat.opacity = 0.9 * (1 - t);
+            if (t >= 1) { p.on = false; p.mesh.visible = false; }
+          });
+        },
+
+        relayout() { applyScale(); },
+
+        // The sign under the text, from its screen rectangle in CSS px
+        setKeepOut(rect, cam) {
+          const xs = [], zs = [];
+          for (const [sx, sy] of [[rect.left, rect.top], [rect.right, rect.top], [rect.left, rect.bottom], [rect.right, rect.bottom]]) {
+            _v.set((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1, 0.5)
+              .unproject(cam).sub(cam.position).normalize();
+            if (_v.y >= -0.001) return;
+            const t = (PLATE_Y - cam.position.y) / _v.y;
+            xs.push(cam.position.x + _v.x * t);
+            zs.push(cam.position.z + _v.z * t);
+          }
+          const x0 = Math.min(...xs) - 2.4, x1 = Math.max(...xs) + 2.4;
+          const z0 = Math.min(...zs) - 2.2, z1 = Math.max(...zs) + 2.0;
+          const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, h = z1 - z0, T = 0.7, y = PLATE_Y + 0.03;
+          plate.position.set(cx, PLATE_Y, cz);
+          plate.scale.set(w, 1, h);
+          frame[0].position.set(cx, y, z0); frame[0].scale.set(w + T, 1, T);
+          frame[1].position.set(cx, y, z1); frame[1].scale.set(w + T, 1, T);
+          frame[2].position.set(x0, y, cz); frame[2].scale.set(T, 1, h);
+          frame[3].position.set(x1, y, cz); frame[3].scale.set(T, 1, h);
+          [plate, ...frame].forEach(m => { m.visible = true; });
+        },
+
+        // A tap pings the map where it landed
+        tapRipple(x, z) { pulse(x / k, z / k, 9, 70); },
+        // Opening contact pings a few interchanges
+        splash(n) {
+          const big = stations.filter(st => st.big);
+          for (let i = 0; i < n + 2; i++) {
+            const st = big[Math.floor(Math.random() * big.length)];
+            pulse(st.x, st.z, 7, 60);
+          }
+        },
+        // No weather underground
+        setRain() {}, setMist() {}, spawnGust() {},
+      };
+    })();
+
+    FISH.init();
+
+    // ── Cinematic intro — camera starts at water level and pulls up ─────────
+    const INTRO_FRAMES = 300; // ~5s of sim time
+    const CAM_START = { x: 0, y: 3,  z: 36 };
+    const LUT_START = { x: 0, y: 0,  z: 8  }; // lookAt target at start
+    const LUT_END   = { x: 0, y: 0,  z: 0  };
+    const LUM_START = 0.15;
+    const LUM_END   = 1.4;
+
+    // Portrait needs a more overhead camera — (0,58,22) was tuned for landscape
+    function camEndPosition() {
+      const portrait = window.innerHeight > window.innerWidth;
+      return portrait
+        ? { x: 0, y: 72, z: 10 }   // nearly top-down for portrait
+        : { x: 0, y: 58, z: 22 };  // standard landscape end position
+    }
+
+    camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
+    camera.lookAt(LUT_START.x, LUT_START.y, LUT_START.z);
+
+    // ── Contact — expands inline under the title (no modal) ─────────────────
+    // The waves and role line are stamped into the grid; the link rows are
+    // real HTML text sized to the grid so they can be selected, copied, and
+    // right-clicked like normal links.
+    const titleHit  = document.getElementById('title-hit');
+    const hintHit   = document.getElementById('hint-hit');
+    const ctlHit    = document.getElementById('ctl-hit');
+    const cLinksEl  = document.getElementById('contact-links');
+    const cMail     = document.getElementById('c-mail');
+    const cCopy     = document.getElementById('c-copy');
+    const cLi       = document.getElementById('c-li');
+    const cGh       = document.getElementById('c-gh');
+    const cX        = document.getElementById('c-x');
+    const cVcf      = document.getElementById('c-vcf');
+    const cShare    = document.getElementById('c-share');
+    const cMailText = document.getElementById('c-mail-t');
+
+    let contactOpen     = false;
+    let contactOpenedAt = 0; // frameNum when opened, for the stamped rows' stagger
+
+    function openContact() {
+      if (contactOpen) return;
+      contactOpen = true;
+      // Skip the stagger if the sim is paused — rows must appear immediately
+      contactOpenedAt = running ? frameNum : frameNum - 999;
+      FISH.splash(3);
+      cLinksEl.hidden = false; // before positionHits: the phone sheet is measured
+      positionHits();
+      requestAnimationFrame(() => cLinksEl.classList.add('open')); // let transition run
+      titleHit.setAttribute('aria-expanded', 'true');
+      hintHit.setAttribute('aria-expanded', 'true');
+      cMail.focus({ preventScroll: true });
+      if (!running) renderFrame();
+    }
+    function closeContact() {
+      if (!contactOpen) return;
+      contactOpen = false;
+      cLinksEl.classList.remove('open');
+      cLinksEl.hidden = true;
+      positionHits();
+      titleHit.setAttribute('aria-expanded', 'false');
+      hintHit.setAttribute('aria-expanded', 'false');
+      hintHit.focus({ preventScroll: true });
+      if (!running) renderFrame();
+    }
+    titleHit.addEventListener('click', () => contactOpen ? closeContact() : openContact());
+    // The hint reads [ close ] while the phone sheet is open
+    hintHit.addEventListener('click', () => contactOpen ? closeContact() : openContact());
+
+    // Native share sheet, where the browser has one (phones, mostly)
+    if (navigator.share) {
+      cShare.hidden = false;
+      cShare.addEventListener('click', () => {
+        navigator.share({
+          title: 'Paul Lewis',
+          text: 'Paul Lewis — fullstack engineer, product & design, NYC',
+          url: 'https://paullew.is/',
+        }).catch(() => {}); // dismissed
+      });
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && contactOpen) closeContact(); });
+
+    // Click-away closes — but never on clicks inside the contact area or the
+    // stamped UI, and never while the user has text selected (so selecting
+    // the email with the mouse can't accidentally dismiss the block).
+    document.addEventListener('click', e => {
+      if (!contactOpen) return;
+      const t = e.target;
+      if (t && t.closest && t.closest('#contact-links, .hit')) return;
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0) return;
+      closeContact();
+    });
+
+    // Save contact. Safari on iOS opens a .vcf link as a contact card, but
+    // Firefox on iOS renders the file as plain text. There the card goes
+    // through the share sheet instead, whose Contacts target imports it. The
+    // file is fetched up front: share() must run inside the tap itself.
+    if (/FxiOS/.test(navigator.userAgent) && navigator.canShare) {
+      let vcfFile = null;
+      fetch(cVcf.href)
+        .then(r => (r.ok ? r.blob() : Promise.reject()))
+        .then(b => { vcfFile = new File([b], 'Paul Lewis.vcf', { type: 'text/vcard' }); })
+        .catch(() => {});
+      cVcf.addEventListener('click', e => {
+        if (!vcfFile || !navigator.canShare({ files: [vcfFile] })) return; // plain link
+        e.preventDefault();
+        navigator.share({ files: [vcfFile] }).catch(() => {}); // dismissed
+      });
+    }
+
+    // Copy-to-clipboard with a brief confirmation state
+    {
+      let resetTimer = null;
+      cCopy.addEventListener('click', async () => {
+        const text = 'contact@paullew.is';
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          // Fallback for contexts without the async clipboard API
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch {}
+          ta.remove();
+        }
+        cCopy.textContent = 'copied';
+        cCopy.classList.add('done');
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          cCopy.textContent = 'copy';
+          cCopy.classList.remove('done');
+        }, 1400);
+      });
+    }
+
+    // Hover/focus feedback for the stamped UI (read by stampUI each frame);
+    // the HTML contact rows use plain CSS :hover instead.
+    const hover = { title: false, hint: false, ctl: false };
+    for (const [el, key] of [[titleHit, 'title'], [hintHit, 'hint'], [ctlHit, 'ctl']]) {
+      const on  = () => { hover[key] = true;  if (!running) renderFrame(); };
+      const off = () => { hover[key] = false; if (!running) renderFrame(); };
+      el.addEventListener('mouseenter', on);
+      el.addEventListener('mouseleave', off);
+      el.addEventListener('focus',      on);
+      el.addEventListener('blur',       off);
+    }
+
+    // ── Tap to ripple — click/touch the water, the water answers ─────────────
+    const _tapVec = new THREE.Vector3();
+    document.addEventListener('click', e => {
+      if (typeof e.clientX !== 'number') return;
+      // UI clicks (stamped hits, contact rows, control bar) are not taps on water
+      if (e.target && e.target.closest && e.target.closest('.hit, #contact-links, #controls')) return;
+      if (!running || frameNum <= INTRO_FRAMES) return;
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0) return;
+      // Unproject the click through the camera onto the ripple plane (y≈0.25)
+      _tapVec.set(
+        (e.clientX / window.innerWidth) * 2 - 1,
+        -(e.clientY / window.innerHeight) * 2 + 1,
+        0.5
+      ).unproject(camera).sub(camera.position).normalize();
+      if (_tapVec.y >= -0.001) return; // ray misses the water
+      const t = (0.25 - camera.position.y) / _tapVec.y;
+      FISH.tapRipple(camera.position.x + _tapVec.x * t, camera.position.z + _tapVec.z * t);
+    });
+
+    // ── Pretext ──────────────────────────────────────────────────────────────
+    ({ cols, rows, px: fontSize } = charGrid(fontSize));
+    sizeAsciiCanvas();
+    sizeRenderer();
+
+    const pt = new Pretext({
+      cols, rows,
+      chars: ' .·',
+      satBoost: 0,
+      lumBoost: LUM_START,
+      font: `${Math.round(fontSize * dpr())}px Consolas, Menlo, monospace`,
+      bg: '#071c1a',
+    });
+
+    function setFontSize(px) {
+      ({ cols, rows, px } = charGrid(px)); // may raise px to respect MAX_CELLS
+      fontSize    = px;
+      pt.font     = `${Math.round(px * dpr())}px Consolas, Menlo, monospace`;
+      pt.resize(cols, rows);
+      sizeRenderer();
+      positionHits();
+    }
+
+    window.addEventListener('resize', () => {
+      const [lo, hi] = fontRange();
+      setFontSize(Math.max(lo, Math.min(hi, fontSize)));
+      updateFontBar();
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.fov    = viewFov();
+      camera.updateProjectionMatrix();
+      WORLD.recompute();
+      FISH.relayout();
+      sizeAsciiCanvas();
+      // Re-frame camera when orientation changes / after intro
+      if (frameNum > INTRO_FRAMES) {
+        const p = camEndPosition();
+        camera.position.set(p.x, p.y, p.z);
+        camera.lookAt(0, 0, 0);
+      }
+      renderFrame(); // repaint immediately, even while paused
+    });
+
+    // ── Stamped UI — title, hint, and [?] drawn into the character grid ─────
+    // Rendered with the same font on the same cell grid as the water, so the
+    // page text is literally part of the ASCII scene. Cells under a glyph are
+    // cleared to the current background; spaces let the water show through.
+    const TITLE_ART = [
+      "                    _ _               _",
+      "  _ __   __ _ _   _| | | _____      _(_)___",
+      " | '_ \\ / _` | | | | | |/ _ \\ \\ /\\ / / / __|",
+      " | |_) | (_| | |_| | | |  __/\\ V  V /| \\__ \\",
+      " | .__/ \\__,_|\\__,_|_|_|\\___| \\_/\\_(_)_|___/",
+      " |_|",
+    ];
+    const TITLE_W   = Math.max(...TITLE_ART.map(l => l.length));
+    const TITLE_H   = TITLE_ART.length;
+    // The animated domain dot is the LAST '(_)' in the art (line 1 happens to
+    // contain the same sequence as part of the letterforms).
+    let DOT_ROW = -1;
+    for (let r = TITLE_ART.length - 1; r >= 0; r--) {
+      if (TITLE_ART[r].includes('(_)')) { DOT_ROW = r; break; }
+    }
+    const DOT_COL   = TITLE_ART[DOT_ROW].lastIndexOf('(_)') + 1;
+    const DOT_CHARS = ['_', '·', '+', '-', '×', '∘', '*', '~', '=', '#', '/', '\\', '|', '^', '%', '!', '?', '@', '&', ':', ';', '<', '>', '{', '}'];
+    const HINT_TEXT = '[ contact ]';
+
+    // Contact block — opens where the hint sits, as a terminal-style window
+    // (#ct-win) holding the role line and real HTML link rows.
+    const CT_ROLE  = 'fullstack engineer · product & design · NYC';
+    const CT_LINKS = [
+      { key: 'mail', icon: '@ ', text: 'contact@paullew.is', copy: true },
+      { key: 'li',   icon: 'in', text: 'linkedin.com/in/paullewispgh' },
+      { key: 'gh',   icon: 'gh', text: 'github.com/paullewis2013' },
+      { key: 'x',    icon: 'x ', text: 'x.com/pel_dev' },
+      { key: 'vcf',  icon: '+ ', text: 'save contact', copy: true }, // pill: share
+    ];
+    const CT_COPY_W = '[copied]'.length;
+    const CT_W = Math.max(
+      CT_ROLE.length,
+      ...CT_LINKS.map(l => l.icon.length + 1 + l.text.length + (l.copy ? 2 + CT_COPY_W : 0))
+    );
+    // Link rows are spread CT_LINK_PITCH rows apart. ctLinkRow(i) is the
+    // row (from ctRow, fractional) where link i's text sits: the title bar
+    // takes ctRow - 1 and ctRow, the role line ctRow + 1, links follow.
+    const CT_LINK_PITCH = 1.7;
+    const ctLinkRow = i => 2 + (CT_LINK_PITCH - 1) / 2 + i * CT_LINK_PITCH;
+    // Block height in rows from ctRow: through the last link, its half-gap, and padding
+    const CT_H = ctLinkRow(CT_LINKS.length - 1) + 1 + (CT_LINK_PITCH - 1) / 2 + 0.6;
+    const HINT_APPEAR = 192; // sim frames (~3.2s), matching the old CSS delays
+    const CTL_APPEAR  = 216; // ~3.6s
+
+    // On short phones the open contact sheet would cover the title, so the
+    // title block rises uiLift rows to clear it (eased in simTick).
+    let uiLift = 0, uiLiftTarget = 0;
+    const sheetMode = () => smallScreen() && isPortrait();
+
+    function uiLayout(lift = Math.round(uiLift)) {
+      const titleCol = Math.round((cols - TITLE_W) / 2);
+      // Portrait phones: the title sits a third of the way down, leaving the
+      // lower two-thirds as one open stretch of water
+      const titleAt  = sheetMode() ? 0.33 : 0.47;
+      const titleRow = Math.max(1, Math.round(rows * titleAt - TITLE_H / 2) - lift);
+      return {
+        titleCol, titleRow,
+        hintCol: Math.round((cols - HINT_TEXT.length) / 2),
+        hintRow: titleRow + TITLE_H + 1,
+        ctCol:   Math.round((cols - CT_W) / 2),
+        ctRow:   titleRow + TITLE_H + 1,
+        ctlCol:  1,
+        ctlRow:  rows - 2 - (coarsePointer() ? 1 : 0), // clear of the iOS home indicator
+      };
+    }
+
+    // Stamp one block of text; colorFn(charIdx, lineIdx, ch) → fillStyle
+    function stampText(lines, col0, row0, colorFn) {
+      const cellW = asciiCanvas.width  / cols;
+      const cellH = asciiCanvas.height / rows;
+      for (let r = 0; r < lines.length; r++) {
+        const row = row0 + r;
+        if (row < 0 || row >= rows) continue;
+        const line = lines[r];
+        for (let c = 0; c < line.length; c++) {
+          const ch = line[c];
+          if (ch === ' ') continue;
+          const col = col0 + c;
+          if (col < 0 || col >= cols) continue;
+          // Clear the cell so the glyph reads over the water
+          asciiCtx.fillStyle = pt.bg;
+          asciiCtx.fillRect(col * cellW, row * cellH, Math.ceil(cellW), Math.ceil(cellH));
+          asciiCtx.fillStyle = colorFn(c, r, ch);
+          asciiCtx.fillText(ch, (col + 0.5) * cellW, (row + 0.5) * cellH);
+        }
+      }
+    }
+
+    // Labels the visitor has to read (the hint, [?]) are never drawn smaller
+    // than UI_MIN_PX, even where the grid's own characters are (phones). A
+    // scaled label is centred on its cells and covers a little more than them.
+    const UI_MIN_PX = 10;
+    function labelBox(col, row, nChars) { // CSS px
+      const cw = window.innerWidth / cols, chp = window.innerHeight / rows;
+      const k = Math.max(1, UI_MIN_PX / fontSize);
+      const w = nChars * cw * k, h = chp * k;
+      return { x: Math.max(2, (col + nChars / 2) * cw - w / 2), y: (row + 0.5) * chp - h / 2, w, h, k };
+    }
+    function stampLabel(text, col, row, color) {
+      const b = labelBox(col, row, text.length);
+      if (b.k === 1) { stampText([text], col, row, () => color); return; }
+      const sx = asciiCanvas.width / window.innerWidth, sy = asciiCanvas.height / window.innerHeight;
+      const cellW = asciiCanvas.width / cols, cellH = asciiCanvas.height / rows;
+      // Clear every cell the label touches, so it sits on a clean plate
+      const c0 = Math.floor(b.x * sx / cellW), c1 = Math.ceil((b.x + b.w) * sx / cellW);
+      const r0 = Math.floor(b.y * sy / cellH), r1 = Math.ceil((b.y + b.h) * sy / cellH);
+      asciiCtx.fillStyle = pt.bg;
+      asciiCtx.fillRect(c0 * cellW, r0 * cellH, (c1 - c0) * cellW, (r1 - r0) * cellH);
+      asciiCtx.font = `${Math.round(fontSize * b.k * sx)}px Consolas, Menlo, monospace`;
+      asciiCtx.fillStyle = color;
+      asciiCtx.fillText(text, (b.x + b.w / 2) * sx, (b.y + b.h / 2) * sy);
+      asciiCtx.font = pt.font;
+    }
+
+    function stampUI() {
+      const L = uiLayout();
+      asciiCtx.font         = pt.font;
+      asciiCtx.textAlign    = 'center';
+      asciiCtx.textBaseline = 'middle';
+
+      // Title — breathing brightness (same 3.8s rhythm as the old CSS glow)
+      const breathe = 0.5 + 0.5 * Math.sin((frameNum / 60 / 3.8) * Math.PI * 2);
+      const titleA  = hover.title ? 1 : 0.6 + breathe * 0.35;
+      const dotA    = 0.5 + 0.5 * Math.sin((frameNum / 60 / 3.8) * Math.PI * 2 + 2.6);
+      const dotCh   = DOT_CHARS[Math.floor(frameNum / 5) % DOT_CHARS.length];
+      const lines   = TITLE_ART.slice();
+      lines[DOT_ROW] = lines[DOT_ROW].slice(0, DOT_COL) + dotCh + lines[DOT_ROW].slice(DOT_COL + 1);
+      stampText(lines, L.titleCol, L.titleRow, (c, r) => {
+        if (r === DOT_ROW && c === DOT_COL)
+          return `rgba(232,144,58,${(0.5 + dotA * 0.5).toFixed(2)})`;
+        if (r === DOT_ROW && (c === DOT_COL - 1 || c === DOT_COL + 1))
+          return 'rgba(232,144,58,0.7)';
+        return `rgba(255,255,255,${titleA.toFixed(2)})`;
+      });
+
+      // Contact hint — fades in after the intro settles, replaced by the
+      // expanded block while the contact section is open
+      if (!contactOpen) {
+        const inA = Math.max(0, Math.min(1, (frameNum - HINT_APPEAR) / 48));
+        if (inA > 0) {
+          const a = (inA * (hover.hint ? 0.95 : 0.55)).toFixed(2);
+          stampLabel(HINT_TEXT, L.hintCol, L.hintRow, `rgba(232,144,58,${a})`);
+        }
+      } else if (sheetMode()) {
+        const a = hover.hint ? 0.95 : 0.55;
+        stampLabel('[  close  ]', L.hintCol, L.hintRow, `rgba(232,144,58,${a})`);
+      }
+
+      // The [?] controls toggle
+      const ctlA = Math.max(0, Math.min(1, (frameNum - CTL_APPEAR) / 30));
+      if (ctlA > 0) {
+        const ctlOn = controlsEl.classList.contains('visible');
+        stampLabel('[?]', L.ctlCol, L.ctlRow,
+          (hover.ctl || ctlOn) ? `rgba(232,144,58,${ctlA.toFixed(2)})`
+                               : `rgba(255,255,255,${(ctlA * 0.35).toFixed(2)})`);
+      }
+
+      // Hand-drawn notes draw on once the hint has faded in / the block has opened
+      handEl.classList.toggle('hint-on', !contactOpen && frameNum > HINT_APPEAR + 60);
+      handEl.classList.toggle('open-on', contactOpen && frameNum - contactOpenedAt > 24);
+    }
+
+
+    // The fish keep-out zone follows the text: title + hint, or title +
+    // contact block while it's open. It's projected through the settled
+    // camera (not the moving intro one) so it matches the resting view.
+    const koCam = new THREE.PerspectiveCamera(viewFov(), window.innerWidth / window.innerHeight, 0.1, 1000);
+    function updateKeepOut(L, extra, sheet) {
+      const cw = window.innerWidth / cols, ch = window.innerHeight / rows;
+      const c0 = Math.min(L.titleCol, L.ctCol);
+      const c1 = Math.max(L.titleCol + TITLE_W, L.ctCol + CT_W);
+      const r1 = contactOpen && !sheet ? L.ctRow + CT_H : L.hintRow + 1; // the sheet isn't on the grid
+      const p  = camEndPosition();
+      koCam.fov    = viewFov();
+      koCam.aspect = window.innerWidth / window.innerHeight;
+      koCam.updateProjectionMatrix();
+      koCam.position.set(p.x, p.y, p.z);
+      koCam.lookAt(0, 0, 0);
+      koCam.updateMatrixWorld();
+      const k = { left: c0 * cw, right: c1 * cw, top: L.titleRow * ch, bottom: r1 * ch };
+      if (extra) { // the hand-drawn note, so fish keep clear of it too
+        k.left = Math.min(k.left, extra.l); k.right = Math.max(k.right, extra.r);
+        k.top = Math.min(k.top, extra.t);   k.bottom = Math.max(k.bottom, extra.b);
+      }
+      FISH.setKeepOut(k, koCam);
+    }
+
+    // ── Hand-drawn layer ────────────────────────────────────────────────────
+
+    const _rnd = s => { const x = Math.sin(s * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+    // Catmull-Rom through the points, as cubic Béziers — reads as one pen stroke
+    function _smooth(pts) {
+      let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+        d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)},${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)}` +
+             ` ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)},${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)}` +
+             ` ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+      }
+      return d;
+    }
+    // A loop drawn by hand: a little more than one turn, wobbling, ends overshooting
+    function handEllipse(cx, cy, rx, ry, seed = 1) {
+      const pts = [], N = 30, a0 = -2.7 + _rnd(seed) * 0.5, turn = Math.PI * 2 * 1.13;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N, a = a0 + t * turn;
+        const wob = 1 + (_rnd(seed * 13 + i) - 0.5) * 0.08, drift = 1 - t * 0.07;
+        pts.push([cx + Math.cos(a) * rx * wob * drift, cy + Math.sin(a) * ry * wob * drift + t * 2]);
+      }
+      return _smooth(pts);
+    }
+    function handUnderline(x0, x1, y, seed = 5) {
+      const pts = [], N = 8;
+      for (let i = 0; i <= N; i++) pts.push([x0 - 4 + (x1 - x0 + 10) * i / N, y + Math.sin(i * 1.3 + seed) * 1.4 + (_rnd(seed + i) - 0.5) * 1.6 + i * 0.25]);
+      return _smooth(pts);
+    }
+    function handArrow(x0, y0, x1, y1, bend = 0.3) {
+      const mx = (x0 + x1) / 2 - (y1 - y0) * bend, my = (y0 + y1) / 2 + (x1 - x0) * bend;
+      const ang = Math.atan2(y1 - my, x1 - mx), L = 8;
+      const h1 = [x1 - L * Math.cos(ang - 0.55), y1 - L * Math.sin(ang - 0.55)];
+      const h2 = [x1 - L * Math.cos(ang + 0.45), y1 - L * Math.sin(ang + 0.45)];
+      return `M${x0.toFixed(1)},${y0.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}` +
+             ` M${h1[0].toFixed(1)},${h1[1].toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} L${h2[0].toFixed(1)},${h2[1].toFixed(1)}`;
+    }
+
+    const handEl = document.getElementById('hand');
+    const setD = (id, d) => document.getElementById(id).setAttribute('d', d);
+    const placeNote = (id, x, y) => { const el = document.getElementById(id); el.style.left = x + 'px'; el.style.top = y + 'px'; };
+
+    function positionHand(L, cw, chp, sheet) {
+      const W = window.innerWidth;
+      let hintBox, openBox;
+      // Closed: a loop around [ contact ], "say hi!" off to the right (below on narrow screens)
+      const { x: hx, y: hy, w: hw, h: hh } = labelBox(L.hintCol, L.hintRow, HINT_TEXT.length);
+      const cx = hx + hw / 2, cy = hy + hh / 2;
+      setD('hd-hint-loop', handEllipse(cx, cy, hw / 2 + 11, hh / 2 + 8, 3));
+      const nw = 72;
+      if (hx + hw + 52 + nw < W - 8) {
+        const nx = hx + hw + 52, ny = hy - 34;
+        hintBox = { l: hx, t: ny - 6, r: nx + nw + 6, b: hy + hh };
+        placeNote('hd-hint-note', nx, ny);
+        setD('hd-hint-arrow', handArrow(nx + 6, ny + 26, hx + hw + 15, cy - 2, -0.35));
+      } else {
+        const nx = cx - nw / 2 + 18, ny = hy + hh + 34;
+        hintBox = { l: nx - 6, t: hy, r: nx + nw + 6, b: ny + 32 };
+        placeNote('hd-hint-note', nx, ny);
+        setD('hd-hint-arrow', handArrow(nx + 10, ny + 2, cx + 6, hy + hh + 10, 0.3));
+      }
+      if (sheet) {
+        // Phone sheet: CSS lays the rows out, so read the email's real box.
+        // The note sits on top of the sheet, its arrow down the left gutter.
+        if (contactOpen) {
+          const t = cMailText.getBoundingClientRect(), s = cLinksEl.getBoundingClientRect();
+          setD('hd-open-under', handUnderline(t.left, t.left + t.width, t.top + t.height + 1, 5));
+          const nx = s.left + 36, ny = s.top - 36;
+          placeNote('hd-open-note', nx, ny);
+          const x0 = nx - 5, y0 = ny + 18, x1 = s.left + 21, y1 = t.top + t.height / 2;
+          const c2x = x1 - 15, c2y = y1 - 9, ang = Math.atan2(y1 - c2y, x1 - c2x), HL = 8;
+          setD('hd-open-arrow',
+            `M${x0.toFixed(1)},${y0.toFixed(1)} C${(x0 - 24).toFixed(1)},${(y0 + 16).toFixed(1)}` +
+            ` ${c2x.toFixed(1)},${c2y.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}` +
+            ` M${(x1 - HL * Math.cos(ang - 0.55)).toFixed(1)},${(y1 - HL * Math.sin(ang - 0.55)).toFixed(1)}` +
+            ` L${x1.toFixed(1)},${y1.toFixed(1)}` +
+            ` L${(x1 - HL * Math.cos(ang + 0.45)).toFixed(1)},${(y1 - HL * Math.sin(ang + 0.45)).toFixed(1)}`);
+        }
+        return contactOpen ? null : hintBox;
+      }
+      // Open: underline the email, a note to the right of the block pointing back at it
+      const ey  = (L.ctRow + ctLinkRow(0)) * chp;            // email row, as in positionHits
+      const ex0 = (L.ctCol + 3) * cw, ex1 = ex0 + 'contact@paullew.is'.length * cw;
+      // just under the email's descenders, in the gap before the next link row
+      setD('hd-open-under', handUnderline(ex0, ex1, ey + chp * 1.1, 5));
+      const right = (L.ctCol + CT_W) * cw, onw = 190;
+      if (right + 44 + onw < W - 8) {
+        const nx = right + 44, ny = ey - 26;
+        openBox = { l: right, t: ny - 8, r: nx + onw + 8, b: ey + chp + 8 };
+        placeNote('hd-open-note', nx, ny);
+        setD('hd-open-arrow', handArrow(nx + 4, ny + 24, right + 8, ey + chp / 2, -0.3));
+      } else {
+        const nx = Math.max(8, (ex0 + ex1) / 2 - onw / 2), ny = (L.ctRow + CT_H) * chp + 26;
+        openBox = { l: nx - 6, t: ey, r: nx + onw + 6, b: ny + 32 };
+        placeNote('hd-open-note', nx, ny);
+        // Curve up the outside of the window's left edge, so the arrow doesn't
+        // cross the other link rows on its way to the email
+        const wl = (L.ctCol - 3) * cw;
+        setD('hd-open-arrow', handArrow(nx + 6, ny + 4, Math.max(6, wl - 5), ey + chp / 2, -0.25));
+      }
+      return contactOpen ? openBox : hintBox;
+    }
+
+    // Place the transparent interactive elements over the stamped cells
+    function positionHits() {
+      const cw = window.innerWidth  / cols;
+      const chp = window.innerHeight / rows;
+      const sheet = sheetMode();
+      const root = document.documentElement;
+      root.classList.toggle('sheet', sheet);
+      root.classList.toggle('sheet-open', sheet && contactOpen);
+      const rowEls = [cMail, cCopy, cLi, cGh, cX, cVcf, cShare];
+      let sheetBox = null;
+      if (sheet) {
+        // CSS owns the row geometry here — drop anything grid mode set inline
+        cLinksEl.style.fontSize = '';
+        for (const el of rowEls) el.style.left = el.style.top = el.style.lineHeight = el.style.height = '';
+      }
+      if (sheet && contactOpen) {
+        // Lift the title block just far enough that the title, the
+        // [ close ] hint and the hand-written note all clear the sheet
+        sheetBox = cLinksEl.getBoundingClientRect();
+        const L0 = uiLayout(0);
+        uiLiftTarget = Math.max(0, Math.min(L0.titleRow - 1,
+          Math.ceil(((L0.hintRow + 1) * chp + 48 - sheetBox.top) / chp)));
+      } else {
+        uiLiftTarget = 0;
+      }
+      if (!running) uiLift = uiLiftTarget; // paused: no ticks to ease it
+      const L  = uiLayout();
+      const place = (el, col, row, wCols, hRows, pad) => {
+        el.style.left   = (col * cw - pad) + 'px';
+        el.style.top    = (row * chp - pad) + 'px';
+        el.style.width  = (wCols * cw + pad * 2) + 'px';
+        el.style.height = (hRows * chp + pad * 2) + 'px';
+      };
+      const pad = coarsePointer() ? 16 : 10; // ≥44px touch targets on touch devices
+      place(titleHit, L.titleCol, L.titleRow, TITLE_W, TITLE_H, 2);
+      const placeLabel = (el, col, row, n) => { // labels can be drawn larger than their cells
+        const b = labelBox(col, row, n);
+        el.style.left   = (b.x - pad) + 'px';
+        el.style.top    = (b.y - pad) + 'px';
+        el.style.width  = (b.w + pad * 2) + 'px';
+        el.style.height = (b.h + pad * 2) + 'px';
+      };
+      placeLabel(hintHit, L.hintCol, L.hintRow, HINT_TEXT.length);
+      placeLabel(ctlHit,  L.ctlCol,  L.ctlRow,  3);
+
+      updateKeepOut(L, positionHand(L, cw, chp, sheet), sheet);
+      // Grid mode: the window replaces the hint. Sheet mode: the hint stays as
+      // [ close ], and the sheet covers the [?] corner.
+      hintHit.style.display = (contactOpen && !sheet) ? 'none' : '';
+      ctlHit.style.display  = (contactOpen && sheet)  ? 'none' : '';
+      hintHit.setAttribute('aria-label', contactOpen ? 'Close contact' : 'Open contact');
+      const ctWin = document.getElementById('ct-win');
+      const bar   = ctWin.querySelector('.ct-bar');
+      const role  = ctWin.querySelector('.ct-role');
+      ctWin.classList.toggle('open', contactOpen);
+      if (sheetBox) {
+        // Window chrome behind the CSS-laid-out sheet, from its measured box
+        ctWin.style.fontSize = (window.innerWidth < 350 ? 11 : 12) + 'px';
+        ctWin.style.left   = sheetBox.left + 'px';
+        ctWin.style.width  = sheetBox.width + 'px';
+        ctWin.style.top    = sheetBox.top + 'px';
+        ctWin.style.height = sheetBox.height + 'px';
+        bar.style.height = '42px';
+        role.style.top = '46px';
+        role.style.lineHeight = '26px';
+      } else if (contactOpen) {
+        // Contact link rows: real HTML text laid onto the grid. Font size and
+        // line height come from the live cell metrics so the rows render at
+        // exactly the same scale as the stamped characters around them.
+        cLinksEl.style.fontSize   = fontSize + 'px';
+        // Each row's box is h tall, centred on the text's cell, so the spacing
+        // between links is also clickable
+        const placeRow = (el, i, col, h = CT_LINK_PITCH * chp) => {
+          const mid = (L.ctRow + ctLinkRow(i) + 0.5) * chp;
+          el.style.left       = (col * cw) + 'px';
+          el.style.top        = (mid - h / 2) + 'px';
+          el.style.lineHeight = h + 'px';
+          el.style.height     = h + 'px';
+        };
+        const pillCol = L.ctCol + CT_W - CT_COPY_W;
+        placeRow(cMail,  0, L.ctCol);
+        placeRow(cCopy,  0, pillCol, 1.35 * chp);
+        placeRow(cLi,    1, L.ctCol);
+        placeRow(cGh,    2, L.ctCol);
+        placeRow(cX,     3, L.ctCol);
+        placeRow(cVcf,   4, L.ctCol);
+        placeRow(cShare, 4, pillCol, 1.35 * chp);
+        // Window: title bar on the row above the block's first row, role on
+        // the row after it, links below, one row of padding at the bottom
+        ctWin.style.fontSize = fontSize + 'px';
+        ctWin.style.left   = ((L.ctCol - 3) * cw) + 'px';
+        ctWin.style.width  = ((CT_W + 6) * cw) + 'px';
+        ctWin.style.top    = ((L.ctRow - 1) * chp) + 'px';
+        ctWin.style.height = ((CT_H + 1) * chp) + 'px';
+        bar.style.height = (2 * chp - 2) + 'px';
+        role.style.top = (2 * chp) + 'px';
+        role.style.lineHeight = chp + 'px';
+      }
+    }
+
+    // ── Font size control — dotted-track scrubber ───────────────────────────
+    const fontBarEl  = document.getElementById('fontBar');
+    const FONT_TRACK = 11;
+    function fontRange() {
+      let [lo, hi] = smallScreen() ? [6, 13] : [6, 16];
+      // Never allow a size where the stamped title would clip horizontally
+      const fitPx = Math.floor(window.innerWidth / ((TITLE_W + 2) * 0.6));
+      hi = Math.max(lo, Math.min(hi, fitPx));
+      return [lo, hi];
+    }
+
+    function updateFontBar() {
+      const [lo, hi] = fontRange();
+      const pos = Math.max(0, Math.min(FONT_TRACK - 1,
+        Math.round((fontSize - lo) / (hi - lo) * (FONT_TRACK - 1))));
+      let bar = '';
+      for (let i = 0; i < FONT_TRACK; i++) bar += i === pos ? '●' : '·';
+      fontBarEl.textContent = `a ${bar} A`;
+    }
+
+    function setFontFromPointer(e) {
+      const rect = fontBarEl.getBoundingClientRect();
+      // Element renders `a <track> A` — map the pointer onto the dot track,
+      // treating the 2-char labels at each end as clamped extremes.
+      const charIdx = (e.clientX - rect.left) / rect.width * (FONT_TRACK + 4);
+      const t = Math.max(0, Math.min(1, (charIdx - 2) / (FONT_TRACK - 1)));
+      const [lo, hi] = fontRange();
+      const px = Math.round(lo + t * (hi - lo));
+      if (px !== fontSize) {
+        setFontSize(px);
+        renderFrame(); // repaint immediately, even while paused
+      }
+      updateFontBar();
+      quality.off = true; // the visitor picked a size — stop adapting it
+    }
+    let fontDragging = false;
+    fontBarEl.addEventListener('pointerdown', e => {
+      fontDragging = true;
+      fontBarEl.setPointerCapture(e.pointerId);
+      setFontFromPointer(e);
+    });
+    fontBarEl.addEventListener('pointermove', e => { if (fontDragging) setFontFromPointer(e); });
+    fontBarEl.addEventListener('pointerup',   () => fontDragging = false);
+    fontBarEl.addEventListener('pointercancel', () => fontDragging = false);
+
+    // ── Pause ────────────────────────────────────────────────────────────────
+    let running = true;
+    const pauseBtn = document.getElementById('pauseBtn');
+    function setRunning(on) {
+      running = on;
+      pauseBtn.textContent = on ? '[ pause ]' : '[ play ]';
+      if (on) { lastTime = performance.now(); accumulator = 0; requestAnimationFrame(loop); }
+    }
+    pauseBtn.addEventListener('click', () => setRunning(!running));
+
+    // ── Controls toggle — '?' key or the stamped [?] corner button ──────────
+    const controlsEl = document.getElementById('controls');
+    function toggleControls() {
+      controlsEl.classList.toggle('visible');
+      if (!running) renderFrame(); // re-stamp [?] highlight while paused
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === '?' && !contactOpen) toggleControls();
+    });
+    ctlHit.addEventListener('click', toggleControls);
+
+    // ── Weather state machine ────────────────────────────────────────────────
+    // Only one effect active at a time: rain | mist | petals | clear
+    let wxState = 'clear';
+    let wxTimer = 900 + Math.floor(Math.random() * 900); // initial clear period
+
+    function tickWeather() {
+      if (--wxTimer > 0) return;
+      if (wxState !== 'clear') {
+        // end current effect, return to clear
+        FISH.setRain(false);
+        FISH.setMist(false);
+        wxState = 'clear';
+        wxTimer = 600 + Math.floor(Math.random() * 1200); // 10–30s clear gap
+      } else {
+        // pick next weather
+        const next = ['rain', 'mist', 'petals'][Math.floor(Math.random() * 3)];
+        if (next === 'rain') {
+          FISH.setRain(true);
+          wxState = 'rain';
+          wxTimer = 1800 + Math.floor(Math.random() * 3600); // 30–90s
+        } else if (next === 'mist') {
+          FISH.setMist(true);
+          wxState = 'mist';
+          wxTimer = 1800 + Math.floor(Math.random() * 2400); // 30–70s
+        } else {
+          FISH.spawnGust();
+          wxState = 'clear'; // petals are fire-and-forget
+          wxTimer = 1800 + Math.floor(Math.random() * 1800); // long cooldown
+        }
+      }
+    }
+
+    // ── Main loop: fixed 60Hz simulation, render on rAF ──────────────────────
+    // Decoupling the sim from the display refresh keeps the pond running at
+    // the same speed on 60/120/144Hz monitors and smooths out frame jitter.
+    const loader   = document.getElementById('loader');
+    const SIM_STEP = 1000 / 60;
+    let frameNum    = 0;
+    let lastTime    = performance.now();
+    let accumulator = 0;
+
+    // The intro plays at 8× once the visitor taps or presses a key, and from
+    // the start when they've already watched it in this tab.
+    let introFast = false, introSeen = false, loaderFaded = false;
+    try { introFast = sessionStorage.getItem('pondSeen') === '1'; } catch {}
+    const skipIntro = () => { if (frameNum < INTRO_FRAMES) introFast = true; };
+    document.addEventListener('pointerdown', skipIntro);
+    document.addEventListener('keydown', skipIntro);
+
+    // ── Adaptive quality ─────────────────────────────────────────────────────
+    // Cost per frame scales with the cell count. When frames run slow the
+    // character size steps up (fewer cells), at most three sizes, and never
+    // back down, so it can't oscillate. `work` is the time spent in the sim
+    // and render; `gap` is the time between frames. Slow means frames are
+    // actually being missed (gap) because of our own work, or the work alone
+    // is at the 60fps budget. Requiring real work alongside a long gap keeps
+    // a 30fps cap (iOS Low Power Mode) from being mistaken for a slow device.
+    const quality = { n: 0, work: 0, gap: 0, skip: 30, slow: 0, steps: 0, off: false };
+    function qualitySample(work, gap) {
+      if (quality.off) return;
+      if (quality.skip > 0) { quality.skip--; return; } // startup / just resized
+      if (gap > 100) return;                            // a hitch, not the steady state
+      quality.work += work;
+      quality.gap  += gap;
+      if (++quality.n < 45) return;
+      const w = quality.work / quality.n, g = quality.gap / quality.n;
+      quality.n = quality.work = quality.gap = 0;
+      if (!(w > 15 || (g > 21 && w > 9))) { quality.slow = 0; return; }
+      if (++quality.slow < 2) return; // two slow windows in a row (~1.5s), not one blip
+      quality.slow = 0;
+      if (quality.steps >= 3 || fontSize >= fontRange()[1]) { quality.off = true; return; }
+      quality.steps++;
+      quality.skip = 20;
+      setFontSize(fontSize + 1);
+      updateFontBar();
+      try { sessionStorage.setItem('pondBump', String(quality.steps)); } catch {}
+    }
+
+    function simTick() {
+      frameNum++;
+      if (introFast && frameNum < INTRO_FRAMES) frameNum = Math.min(INTRO_FRAMES, frameNum + 7);
+      if (!loaderFaded && frameNum >= 2) {
+        loaderFaded = true;
+        loader.classList.add('fade-out');
+        loader.addEventListener('transitionend', () => loader.remove(), { once: true });
+      }
+      if (!introSeen && frameNum >= INTRO_FRAMES) {
+        introSeen = true;
+        try { sessionStorage.setItem('pondSeen', '1'); } catch {}
+      }
+      // Ease the title block toward its lift; hits and keep-out follow by row
+      if (uiLift !== uiLiftTarget) {
+        const before = Math.round(uiLift);
+        uiLift += (uiLiftTarget - uiLift) * 0.22;
+        if (Math.abs(uiLiftTarget - uiLift) < 0.05) uiLift = uiLiftTarget;
+        if (Math.round(uiLift) !== before) positionHits();
+      }
+      // Intro camera pull-up + lum reveal
+      if (frameNum <= INTRO_FRAMES) {
+        const t = frameNum / INTRO_FRAMES;
+        const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        const CAM_END = camEndPosition();
+        camera.position.set(
+          CAM_START.x + (CAM_END.x - CAM_START.x) * e,
+          CAM_START.y + (CAM_END.y - CAM_START.y) * e,
+          CAM_START.z + (CAM_END.z - CAM_START.z) * e,
+        );
+        camera.lookAt(
+          LUT_START.x + (LUT_END.x - LUT_START.x) * e,
+          LUT_START.y + (LUT_END.y - LUT_START.y) * e,
+          LUT_START.z + (LUT_END.z - LUT_START.z) * e,
+        );
+        pt.lumBoost = LUM_START + (LUM_END - LUM_START) * e;
+        pt.satBoost = 2.8 * e;
+        const fullChars = Array.from(Pretext.CHARS_WILD);
+        const count = Math.max(3, Math.round(e * fullChars.length));
+        pt.chars = fullChars.slice(0, count);
+      }
+
+      tickWeather();
+      FISH.update(frameNum);
+    }
+
+    function renderFrame() {
+      if (glLost) return; // keep the last good frame on screen
+      renderer.render(scene, camera);
+      pt.frame(renderer.domElement, asciiCanvas);
+      stampUI();
+    }
+
+    function loop(now) {
+      if (!running) return;
+      requestAnimationFrame(loop);
+      const gap = now - lastTime;
+      lastTime = now;
+      if (glLost) { accumulator = 0; return; } // frozen until the context is back
+      const t0 = performance.now();
+      accumulator += Math.min(gap, 250); // tab was hidden or a long hitch — don't fast-forward
+      let stepped = false;
+      while (accumulator >= SIM_STEP) {
+        simTick();
+        accumulator -= SIM_STEP;
+        stepped = true;
+      }
+      if (stepped) {
+        renderFrame();
+        qualitySample(performance.now() - t0, gap);
+      }
+    }
+
+    // A reload in the same tab starts at the size it had already adapted to
+    try {
+      const bump = Math.min(3, +sessionStorage.getItem('pondBump') || 0);
+      if (bump > 0) {
+        quality.steps = bump;
+        setFontSize(Math.min(fontRange()[1], fontSize + bump));
+      }
+    } catch {}
+    positionHits();
+    updateFontBar();
+    window.__pondBooted();
+
+    // Respect reduced-motion: draw one settled frame and start paused.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      frameNum   = INTRO_FRAMES;
+      pt.lumBoost = LUM_END;
+      pt.satBoost = 2.8;
+      pt.chars    = Array.from(Pretext.CHARS_WILD);
+      const p = camEndPosition();
+      camera.position.set(p.x, p.y, p.z);
+      camera.lookAt(0, 0, 0);
+      simTick();
+      renderFrame();
+      loader.remove();
+      running = false;
+      pauseBtn.textContent = '[ play ]';
+      controlsEl.classList.add('visible');
+    } else {
+      requestAnimationFrame(loop);
+    }
+  }
+  </script>
+
+  <script type="module" onerror="window.__pondFail()">
+    import * as THREE from 'three';
+    window.THREE = THREE;
+    startPond();
+  </script>
+</body>
+</html>
