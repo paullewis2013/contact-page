@@ -67,7 +67,13 @@ blog/
    `requestAnimationFrame`, so it plays at the same speed on 60/120/144 Hz
    displays and doesn't stutter in Chrome/Safari the way per-frame DOM
    mutation did.
-5. Robustness on phones. The intro plays at 8× after a tap or key press,
+5. Phones in portrait get their own tuning: 7px characters (about 90
+   columns, against ~70 at 9px) at up to 2× pixel density; five koi at
+   nearly full size instead of many shrunken ones, so each still reads as
+   a fish; the title a third of the way down; lily pads anchored clear of
+   the title; and the hint and `[?]` drawn no smaller than 10px however
+   small the grid's characters are.
+6. Robustness on phones. The intro plays at 8× after a tap or key press,
    and from the start on a repeat visit in the same tab. When frames run
    slow for a second or two the character size steps up (fewer cells), at
    most three sizes and never back down; using the scrubber turns that

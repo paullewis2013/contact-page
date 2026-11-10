@@ -482,18 +482,19 @@
     'use strict';
 
     // ── Sizing ───────────────────────────────────────────────────────────────
-    // Smaller screens get a slightly larger base font → fewer cells → smooth
-    // animation on phones instead of the old static fallback page.
+    // Phones get smaller characters than desktop. A narrow screen only fits
+    // ~70 columns at 9px, too few for a koi to read as a koi; 7px gives ~90.
+    // (The slow-frame adaptation further down steps this back up if needed.)
     const smallScreen = () => window.innerWidth < 700;
     // Touch-target sizing keys off pointer type, not width — a phone in
     // landscape is 800+px wide but still needs finger-sized targets.
     const coarsePointer = () => window.matchMedia('(pointer: coarse)').matches;
-    const baseFontSize = () => (smallScreen() ? 9 : 10);
+    const baseFontSize = () => (smallScreen() ? 7 : 10);
 
     // Cap the canvas backing store (~9 MP) and the pixel ratio: crisp text
     // without letting a 4K/retina display quadruple the per-frame fill cost.
     const dpr = () => {
-      const raw       = Math.min(window.devicePixelRatio || 1, smallScreen() ? 1.5 : 2);
+      const raw       = Math.min(window.devicePixelRatio || 1, 2);
       const maxByArea = Math.sqrt(9e6 / (window.innerWidth * window.innerHeight));
       return Math.max(1, Math.min(raw, maxByArea));
     };
@@ -622,13 +623,16 @@
       const FISH_COUNT   = 12;
       // Small screens. A 1280px desktop shows ~82 world units of pond across,
       // a phone only ~39, so at one fixed size every koi and pad would take
-      // twice the share of a phone screen. sceneK shrinks how koi, pads,
-      // ripples and petals look; speed, spacing and the text keep-out stay at
-      // full strength, so the smaller koi get more room. Desktop views get 1.
-      // Phones also show fewer koi (the rest are hidden, not removed, so
-      // rotating to landscape brings them back).
-      const PHONE_FISH = 8;
-      let sceneK = 1, activeFish = FISH_COUNT;
+      // twice the share of a phone screen. sceneK shrinks how pads, ripples
+      // and petals look; speed, spacing and the text keep-out stay at full
+      // strength. Desktop views get 1.
+      // Koi are the exception on phones: shrunk that far they are only a few
+      // characters across and stop reading as fish, so phones show a handful
+      // at nearly full size instead of many small ones (the rest are hidden,
+      // not removed, so rotating to landscape brings them back).
+      const PHONE_FISH   = 5;
+      const PHONE_FISH_K = 0.88;
+      let sceneK = 1, fishK = 1, activeFish = FISH_COUNT, phoneView = false;
       const viewScale = () => Math.max(0.58, Math.min(1, (2 * WORLD.bx / 1.05) / 70));
       // Depths. Everything at or above the surface (lily pads 0.3, ripples
       // 0.25) must sit over the whole koi, whose dorsal fin reaches 1.75
@@ -716,18 +720,48 @@
 
       function applyScale() {
         sceneK = viewScale();
-        activeFish = sceneK < 0.75 ? PHONE_FISH : FISH_COUNT;
+        phoneView  = sceneK < 0.75;
+        activeFish = phoneView ? PHONE_FISH : FISH_COUNT;
+        fishK      = phoneView ? PHONE_FISH_K : sceneK;
         fishes.forEach((f, i) => {
           f.active = i < activeFish;
           f.group.visible = f.shadowGroup.visible = f.active;
-          f.group.scale.setScalar(sceneK);
-          f.shadowGroup.scale.setScalar(sceneK);
+          f.group.scale.setScalar(fishK);
+          f.shadowGroup.scale.setScalar(fishK);
         });
         lilyPads.forEach(pad => {
           pad.scale.set(sceneK, sceneK, 1);       // flat circles: scale in their local plane
           pad.vein.scale.set(sceneK, sceneK, 1);
           pad.shadow.scale.set(pad.r * 0.92 * sceneK, pad.r * 0.92 * sceneK, 1);
         });
+      }
+
+      // Lily pads can't swim clear of the text the way koi do. On phones,
+      // where the title takes half the screen's width, their anchors step
+      // aside instead: a pad that would sit under the keep-out zone is
+      // anchored at the zone's nearest edge. Pads drift to a moved anchor
+      // slowly; the very first placement snaps, so none starts under the
+      // title. Wider views leave the pads where they were authored.
+      let padsPlaced = false;
+      function anchorPads() {
+        lilyPads.forEach(pad => {
+          let ax = pad.nx * WORLD.bx * 0.9, az = pad.nz * WORLD.bz * 0.9;
+          if (keepOut && phoneView) {
+            const m  = pad.r * sceneK * 0.85;
+            const x0 = keepOut.x0 - m, x1 = keepOut.x1 + m, z0 = keepOut.z0 - m, z1 = keepOut.z1 + m;
+            if (ax > x0 && ax < x1 && az > z0 && az < z1) {
+              const near = Math.min(ax - x0, x1 - ax, az - z0, z1 - az);
+              if      (near === az - z0) az = z0;
+              else if (near === z1 - az) az = z1;
+              else if (near === ax - x0) ax = x0;
+              else                       ax = x1;
+            }
+          }
+          pad.anchorX = ax;
+          pad.anchorZ = az;
+          if (keepOut && !padsPlaced) { pad.position.x = ax; pad.position.z = az; }
+        });
+        if (keepOut) padsPlaced = true;
       }
 
       function spawnRipple(x, z, startScale, maxLifeBase, maxScale = 9, lifeJitter = 60) {
@@ -1188,10 +1222,7 @@
         relayout() {
           coverView();
           applyScale();
-          lilyPads.forEach(pad => {
-            pad.anchorX = pad.nx * WORLD.bx * 0.9;
-            pad.anchorZ = pad.nz * WORLD.bz * 0.9;
-          });
+          anchorPads();
           mistPatches.forEach((m, i) => {
             const angle = (i / mistPatches.length) * Math.PI * 2;
             const r     = 20 + (m.noiseOff % 20);
@@ -1215,6 +1246,7 @@
             zs.push(cam.position.z + _koVec.z * t);
           }
           keepOut = { x0: Math.min(...xs), x1: Math.max(...xs), z0: Math.min(...zs), z1: Math.max(...zs) };
+          anchorPads();
         },
         setMist(on) { mistActive = on; },
 
@@ -1547,7 +1579,10 @@
 
     function uiLayout(lift = Math.round(uiLift)) {
       const titleCol = Math.round((cols - TITLE_W) / 2);
-      const titleRow = Math.max(1, Math.round(rows * 0.47 - TITLE_H / 2) - lift);
+      // Portrait phones: the title sits a third of the way down, leaving the
+      // lower two-thirds as one open stretch of water
+      const titleAt  = sheetMode() ? 0.33 : 0.47;
+      const titleRow = Math.max(1, Math.round(rows * titleAt - TITLE_H / 2) - lift);
       return {
         titleCol, titleRow,
         hintCol: Math.round((cols - HINT_TEXT.length) / 2),
@@ -1581,6 +1616,32 @@
       }
     }
 
+    // Labels the visitor has to read (the hint, [?]) are never drawn smaller
+    // than UI_MIN_PX, even where the grid's own characters are (phones). A
+    // scaled label is centred on its cells and covers a little more than them.
+    const UI_MIN_PX = 10;
+    function labelBox(col, row, nChars) { // CSS px
+      const cw = window.innerWidth / cols, chp = window.innerHeight / rows;
+      const k = Math.max(1, UI_MIN_PX / fontSize);
+      const w = nChars * cw * k, h = chp * k;
+      return { x: Math.max(2, (col + nChars / 2) * cw - w / 2), y: (row + 0.5) * chp - h / 2, w, h, k };
+    }
+    function stampLabel(text, col, row, color) {
+      const b = labelBox(col, row, text.length);
+      if (b.k === 1) { stampText([text], col, row, () => color); return; }
+      const sx = asciiCanvas.width / window.innerWidth, sy = asciiCanvas.height / window.innerHeight;
+      const cellW = asciiCanvas.width / cols, cellH = asciiCanvas.height / rows;
+      // Clear every cell the label touches, so it sits on a clean plate
+      const c0 = Math.floor(b.x * sx / cellW), c1 = Math.ceil((b.x + b.w) * sx / cellW);
+      const r0 = Math.floor(b.y * sy / cellH), r1 = Math.ceil((b.y + b.h) * sy / cellH);
+      asciiCtx.fillStyle = pt.bg;
+      asciiCtx.fillRect(c0 * cellW, r0 * cellH, (c1 - c0) * cellW, (r1 - r0) * cellH);
+      asciiCtx.font = `${Math.round(fontSize * b.k * sx)}px Consolas, Menlo, monospace`;
+      asciiCtx.fillStyle = color;
+      asciiCtx.fillText(text, (b.x + b.w / 2) * sx, (b.y + b.h / 2) * sy);
+      asciiCtx.font = pt.font;
+    }
+
     function stampUI() {
       const L = uiLayout();
       asciiCtx.font         = pt.font;
@@ -1608,18 +1669,18 @@
         const inA = Math.max(0, Math.min(1, (frameNum - HINT_APPEAR) / 48));
         if (inA > 0) {
           const a = (inA * (hover.hint ? 0.95 : 0.55)).toFixed(2);
-          stampText([HINT_TEXT], L.hintCol, L.hintRow, () => `rgba(232,144,58,${a})`);
+          stampLabel(HINT_TEXT, L.hintCol, L.hintRow, `rgba(232,144,58,${a})`);
         }
       } else if (sheetMode()) {
         const a = hover.hint ? 0.95 : 0.55;
-        stampText(['[  close  ]'], L.hintCol, L.hintRow, () => `rgba(232,144,58,${a})`);
+        stampLabel('[  close  ]', L.hintCol, L.hintRow, `rgba(232,144,58,${a})`);
       }
 
       // The [?] controls toggle
       const ctlA = Math.max(0, Math.min(1, (frameNum - CTL_APPEAR) / 30));
       if (ctlA > 0) {
         const ctlOn = controlsEl.classList.contains('visible');
-        stampText(['[?]'], L.ctlCol, L.ctlRow, () =>
+        stampLabel('[?]', L.ctlCol, L.ctlRow,
           (hover.ctl || ctlOn) ? `rgba(232,144,58,${ctlA.toFixed(2)})`
                                : `rgba(255,255,255,${(ctlA * 0.35).toFixed(2)})`);
       }
@@ -1700,7 +1761,7 @@
       const W = window.innerWidth;
       let hintBox, openBox;
       // Closed: a loop around [ contact ], "say hi!" off to the right (below on narrow screens)
-      const hx = L.hintCol * cw, hy = L.hintRow * chp, hw = HINT_TEXT.length * cw, hh = chp;
+      const { x: hx, y: hy, w: hw, h: hh } = labelBox(L.hintCol, L.hintRow, HINT_TEXT.length);
       const cx = hx + hw / 2, cy = hy + hh / 2;
       setD('hd-hint-loop', handEllipse(cx, cy, hw / 2 + 11, hh / 2 + 8, 3));
       const nw = 72;
@@ -1792,8 +1853,15 @@
       };
       const pad = coarsePointer() ? 16 : 10; // ≥44px touch targets on touch devices
       place(titleHit, L.titleCol, L.titleRow, TITLE_W, TITLE_H, 2);
-      place(hintHit,  L.hintCol,  L.hintRow,  HINT_TEXT.length, 1, pad);
-      place(ctlHit,   L.ctlCol,   L.ctlRow,   3,                1, pad);
+      const placeLabel = (el, col, row, n) => { // labels can be drawn larger than their cells
+        const b = labelBox(col, row, n);
+        el.style.left   = (b.x - pad) + 'px';
+        el.style.top    = (b.y - pad) + 'px';
+        el.style.width  = (b.w + pad * 2) + 'px';
+        el.style.height = (b.h + pad * 2) + 'px';
+      };
+      placeLabel(hintHit, L.hintCol, L.hintRow, HINT_TEXT.length);
+      placeLabel(ctlHit,  L.ctlCol,  L.ctlRow,  3);
 
       updateKeepOut(L, positionHand(L, cw, chp, sheet), sheet);
       // Grid mode: the window replaces the hint. Sheet mode: the hint stays as
@@ -1854,7 +1922,7 @@
     const fontBarEl  = document.getElementById('fontBar');
     const FONT_TRACK = 11;
     function fontRange() {
-      let [lo, hi] = smallScreen() ? [8, 13] : [6, 16];
+      let [lo, hi] = smallScreen() ? [6, 13] : [6, 16];
       // Never allow a size where the stamped title would clip horizontally
       const fitPx = Math.floor(window.innerWidth / ((TITLE_W + 2) * 0.6));
       hi = Math.max(lo, Math.min(hi, fitPx));
