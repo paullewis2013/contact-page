@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>about · paullew.is</title>
+  <meta name="description" content="About Paul Lewis — fullstack engineer, product and design, NYC.">
+  <!-- PLACEHOLDER PAGE: the body text is lorem ipsum. Until it's replaced the
+       page is kept out of search (noindex here, no entry in sitemap.xml) and
+       isn't linked from the home page. When the real text lands: delete the
+       robots meta below, add /about/ to sitemap.xml, and link it from home. -->
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#071c1a">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="paullew.is">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://paullew.is/about/">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Same tokens and page furniture as /blog/ */
+    :root {
+      --bg:       #071c1a;
+      --panel:    #0a211f;
+      --fg:       rgba(255,255,255,0.88);
+      --fg-dim:   rgba(255,255,255,0.45);
+      --fg-faint: rgba(255,255,255,0.22);
+      --accent:        #e8903a;
+      --accent-border: rgba(232,144,58,0.28);
+      --green:  #2db87a;
+      --rule:   rgba(255,255,255,0.08);
+      --mono:   Consolas, Menlo, 'SF Mono', monospace;
+      --prose:  'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--mono);
+      font-size: 15px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 3.2rem 1.4rem 6rem;
+    }
+
+    /* ── Top-right sections nav ────────────────────────────────────────────── */
+    #sections-nav {
+      position: fixed;
+      top: 1.6rem;
+      right: 1.8rem;
+      z-index: 6;
+      font-size: 10px;
+      letter-spacing: 0.13em;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.55rem;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--fg-faint);
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    a.nav-item { color: var(--fg-dim); transition: color 0.15s; padding: 0.2rem 0; }
+    a.nav-item:hover { color: var(--accent); }
+    .nav-item .nav-here {
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      color: rgba(45,184,122,0.7);
+      border: 1px solid rgba(45,184,122,0.35);
+      border-radius: 2px;
+      padding: 0 3px;
+      line-height: 1.5;
+    }
+    @media (max-width: 600px) {
+      #sections-nav { top: 1rem; right: 1rem; }
+    }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
+    header { margin-bottom: 2.6rem; }
+
+    .back {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-dim);
+      text-decoration: none;
+      margin-bottom: 2.2rem;
+      padding: 0.2rem 0;
+      transition: color 0.15s;
+    }
+    .back:hover { color: var(--accent); }
+
+    .page-title {
+      font-size: 16px;
+      font-weight: normal;
+      letter-spacing: 0.04em;
+      user-select: none;
+    }
+    .page-title .slash { color: var(--accent); }
+
+    @keyframes dot-breathe {
+      0%, 100% { color: rgba(232,144,58,0.5); text-shadow: 0 0 6px rgba(232,144,58,0.2); }
+      50%       { color: rgba(232,144,58,1);   text-shadow: 0 0 18px rgba(232,144,58,0.8); }
+    }
+    .dot-paren { color: rgba(232,144,58,0.7); }
+    .dot-inner { animation: dot-breathe 3.8s ease-in-out infinite; animation-delay: -1.6s; }
+
+    /* scrolling wave strip with a koi crossing it — same motif as /blog/ */
+    .wave-wrap {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      margin-top: 1.1rem;
+      opacity: 0.35;
+      user-select: none;
+    }
+    .wave {
+      white-space: nowrap;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      color: var(--green);
+      width: max-content;
+      animation: wave-scroll 18s linear infinite;
+    }
+    @keyframes wave-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .koi {
+      position: absolute;
+      top: 0;
+      left: -8ch;
+      font-size: 12px;
+      color: var(--accent);
+      opacity: 0.9;
+      white-space: pre;
+      animation: koi-swim 48s linear infinite;
+    }
+    @keyframes koi-swim {
+      from { transform: translateX(0); }
+      to   { transform: translateX(calc(100% + 100vw)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .koi { animation: none; left: 2ch; }
+      .wave { animation: none; }
+      .dot-inner { animation: none; }
+    }
+
+    /* ── The page body — framed like a blog article ────────────────────────── */
+    .frame {
+      background: var(--panel);
+      border: 1px solid var(--accent-border);
+      border-top: 2px solid var(--accent);
+      padding: 1.6rem 2rem 2.4rem;
+    }
+    @media (max-width: 600px) {
+      .frame { padding: 1.3rem 1.2rem 2rem; }
+    }
+    .frame-top {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.6rem;
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      user-select: none;
+    }
+    .frame-top::before,
+    .frame-top::after { content: ''; flex: 1; height: 1px; background: rgba(232,144,58,0.3); }
+
+    .frame h1, .frame h2 {
+      font-weight: normal;
+      letter-spacing: 0.02em;
+      color: rgba(255,255,255,0.95);
+      line-height: 1.4;
+    }
+    .frame h1 { font-size: 20px; margin: 0 0 0.2rem; }
+    .frame h2 { font-size: 16px; margin: 2.2rem 0 0.9rem; }
+    .frame h2::before { content: '## '; color: var(--accent); opacity: 0.7; }
+    .frame p { font-family: var(--prose); font-size: 17px; line-height: 1.6; margin: 0 0 1.2rem; }
+    .frame p.role { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--fg-dim); margin-bottom: 1.6rem; }
+    .frame p:last-child { margin-bottom: 0; }
+
+    footer {
+      margin-top: 4rem;
+      font-size: 11px;
+      color: var(--fg-faint);
+      letter-spacing: 0.1em;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    footer a { color: var(--fg-dim); text-decoration: none; transition: color 0.15s; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <nav id="sections-nav" aria-label="Sections">
+    <a class="nav-item" href="/">/ home</a>
+    <div class="nav-item">/ about <span class="nav-here">here</span></div>
+  </nav>
+
+  <div class="wrap">
+    <header>
+      <a class="back" href="/">&larr; back home</a>
+      <p class="page-title"><span class="slash">/</span> about<span class="dot-paren">(</span><span class="dot-inner">_</span><span class="dot-paren">)</span></p>
+      <div class="wave-wrap" aria-hidden="true">
+        <!-- doubled so the scroll loop is seamless -->
+        <div class="wave">~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · ~ · </div>
+        <span class="koi">><(((°></span>
+      </div>
+    </header>
+
+    <main class="frame">
+      <div class="frame-top" aria-hidden="true">about</div>
+      <h1>Paul Lewis</h1>
+      <p class="role">fullstack engineer · product &amp; design · NYC</p>
+
+      <!-- PLACEHOLDER TEXT from here to the end of <main> -->
+      <p>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
+        tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
+        veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
+        commodo consequat.
+      </p>
+
+      <h2>Work</h2>
+      <p>
+        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
+        dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
+        proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+      </p>
+      <p>
+        Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam
+        varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus
+        magna felis sollicitudin mauris.
+      </p>
+
+      <h2>Background</h2>
+      <p>
+        Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus
+        vulputate vehicula. Donec lobortis risus a elit. Etiam tempor. Ut
+        ullamcorper, ligula eu tempor congue, eros est euismod turpis, id
+        tincidunt sapien risus a quam.
+      </p>
+
+      <h2>Outside work</h2>
+      <p>
+        Maecenas fermentum consequat mi. Donec fermentum. Pellentesque
+        malesuada nulla a mi. Duis sapien sem, aliquet nec, commodo eget,
+        consequat quis, neque. Aliquam faucibus, elit ut dictum aliquet, felis
+        nisl adipiscing sapien, sed malesuada diam lacus eget erat.
+      </p>
+    </main>
+
+    <footer>
+      <span>paullew.is</span>
+      <a href="mailto:contact@paullew.is">contact@paullew.is</a>
+    </footer>
+  </div>
+</body>
+</html>

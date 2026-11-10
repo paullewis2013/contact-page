@@ -27,6 +27,9 @@ og-image.png      link-preview card (OpenGraph/Twitter)
 apple-touch-icon.png / icon-*.png / site.webmanifest — home-screen icons
 preview.command   double-click to preview the site locally (macOS)
 smoke.js          `node smoke.js` — executes the page under mocks; run before pushing
+about/
+  index.html      about page — PLACEHOLDER lorem ipsum for now, so it's noindex, not in
+                  the sitemap and not linked from home (the file's head says what to undo)
 blog/
   index.html      blog shell (list + article views, hash-routed)
   md.js           self-contained Markdown renderer

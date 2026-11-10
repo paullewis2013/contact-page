@@ -1372,6 +1372,23 @@
       closeContact();
     });
 
+    // Save contact. Safari on iOS opens a .vcf link as a contact card, but
+    // Firefox on iOS renders the file as plain text. There the card goes
+    // through the share sheet instead, whose Contacts target imports it. The
+    // file is fetched up front: share() must run inside the tap itself.
+    if (/FxiOS/.test(navigator.userAgent) && navigator.canShare) {
+      let vcfFile = null;
+      fetch(cVcf.href)
+        .then(r => (r.ok ? r.blob() : Promise.reject()))
+        .then(b => { vcfFile = new File([b], 'Paul Lewis.vcf', { type: 'text/vcard' }); })
+        .catch(() => {});
+      cVcf.addEventListener('click', e => {
+        if (!vcfFile || !navigator.canShare({ files: [vcfFile] })) return; // plain link
+        e.preventDefault();
+        navigator.share({ files: [vcfFile] }).catch(() => {}); // dismissed
+      });
+    }
+
     // Copy-to-clipboard with a brief confirmation state
     {
       let resetTimer = null;
