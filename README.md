@@ -17,7 +17,7 @@ vendor/           self-hosted third-party files, so the page makes no outside re
                         notes. Reword a note and the subset must be regenerated:
                         fonts.googleapis.com/css2?family=Caveat:wght@600&text=<all the letters>
   OFL-Caveat.txt        the font's licence
-paul-lewis.vcf    the "save contact" card: name, title, email and profile links only
+paul-lewis.vcf    the "save contact" card: name, email, website and LinkedIn only
 favicon.svg
 robots.txt        allows all crawlers (AI crawlers named explicitly); points at the sitemap
 sitemap.xml       hand-maintained: add a <url> per new page (the blog isn't listed yet)
