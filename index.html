@@ -6,14 +6,13 @@
        below is the visible page without JS, and screen-reader-only with it -->
   <script>document.documentElement.classList.add('js')</script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Three.js, the only external dependency, as an ES module (the old UMD
-       build/three.min.js was deprecated in r150 and removed after r160).
-       Pinned; to upgrade, bump the version here and in the modulepreload. -->
+  <!-- Three.js r160 as an ES module, served from vendor/ so the page makes
+       no third-party requests. To upgrade, replace the file with the new
+       build/three.module.min.js from the three npm package. -->
   <script type="importmap">
-  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }
+  { "imports": { "three": "./vendor/three.module.min.js" } }
   </script>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js">
+  <link rel="modulepreload" href="vendor/three.module.min.js">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>Paul Lewis — Fullstack Engineer &amp; Product Designer, NYC</title>
   <meta name="description" content="Paul Lewis — fullstack engineer, product and design, NYC.">
@@ -61,10 +60,17 @@
     "alumniOf": { "@type": "CollegeOrUniversity", "name": "University of Pittsburgh", "url": "https://www.pitt.edu/" }
   }
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" rel="stylesheet">
   <style>
+    /* Caveat 600 (SIL OFL, see vendor/OFL-Caveat.txt), subset to the glyphs of
+       the two hand-written notes: "say hi!" and "fastest way to reach me".
+       Changing either note's wording means regenerating the subset. */
+    @font-face {
+      font-family: 'Caveat';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url(vendor/caveat-notes.woff2) format('woff2');
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -220,7 +226,7 @@
       filter: drop-shadow(0 0 2px #071c1a) drop-shadow(0 0 3px #071c1a); }
     #hand .ink {
       fill: none; stroke: #e8903a; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
-      opacity: 0.85; stroke-dasharray: 1; stroke-dashoffset: 1;
+      opacity: 0.85; stroke-dasharray: 1 2; stroke-dashoffset: 1; /* gap > path: no stray end-cap dot while hidden */
       transition: stroke-dashoffset 0.25s ease;
     }
     #hand .note {
@@ -271,6 +277,35 @@
     }
     #contact-links .c-copy:hover { border-color: #e8903a; }
     #contact-links .c-copy.done  { border-color: rgba(45,184,122,0.6); }
+
+    /* Phones in portrait (html.sheet, set by positionHits): the contact
+       window docks to the bottom edge as a sheet with finger-sized rows,
+       laid out by CSS instead of on the character grid. #ct-win is sized
+       to match from the sheet's measured box. */
+    html.sheet #contact-links {
+      position: fixed; z-index: 5; left: 8px; right: 8px; bottom: 0;
+      max-width: 440px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr auto; align-items: center;
+      padding: 78px 18px calc(10px + env(safe-area-inset-bottom, 0px)) 30px;
+      font-family: Consolas, Menlo, monospace;
+      font-size: clamp(13px, 3.9vw, 15px);
+    }
+    html.sheet #contact-links[hidden] { display: none; }
+    html.sheet #contact-links a, html.sheet #contact-links button { position: static; }
+    html.sheet #contact-links .c-row {
+      height: 48px; line-height: 48px; overflow: hidden; text-overflow: ellipsis;
+    }
+    html.sheet #contact-links .c-row:not(#c-mail):not(#c-vcf) { grid-column: 1 / -1; }
+    html.sheet #contact-links .c-copy { height: 34px; line-height: 32px; font-size: 13px; }
+    html.sheet #ct-win {
+      border-radius: 14px 14px 0 0; border-bottom: none;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(.2,.8,.2,1), opacity 0s 0.3s;
+    }
+    html.sheet #ct-win.open { transform: none; transition-delay: 0s; }
+    html.sheet #ct-win .ct-bar { border-radius: 14px 14px 0 0; padding-left: 2.6em; }
+    html.sheet-open #controls { display: none; }
+    @media (prefers-reduced-motion: reduce) { html.sheet #ct-win { transition: none; } }
 
     html:not(.js) #loader { display: none; }
     #loader {
@@ -354,6 +389,7 @@
           <li><a href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener me"><span class="ci">in</span> linkedin.com/in/paullewispgh</a></li>
           <li><a href="https://github.com/paullewis2013" target="_blank" rel="noopener me"><span class="ci">gh</span> github.com/paullewis2013</a></li>
           <li><a href="https://x.com/pel_dev" target="_blank" rel="noopener me"><span class="ci">x </span> x.com/pel_dev</a></li>
+          <li><a href="paul-lewis.vcf" type="text/vcard"><span class="ci">+ </span> save contact</a></li>
         </ul>
       </nav>
     </main>
@@ -375,11 +411,14 @@
     <div class="ct-role">fullstack engineer<span> · product &amp; design · NYC</span></div>
   </div>
   <div id="contact-links" hidden>
-    <a class="c-row" id="c-mail" href="mailto:contact@paullew.is" style="--d:0.17s"><span class="ci">@ </span> contact@paullew.is</a>
+    <a class="c-row" id="c-mail" href="mailto:contact@paullew.is" style="--d:0.17s"><span class="ci">@ </span> <span id="c-mail-t">contact@paullew.is</span></a>
     <button class="c-copy" id="c-copy" style="--d:0.17s" aria-label="Copy email address">copy</button>
     <a class="c-row" id="c-li" href="https://linkedin.com/in/paullewispgh" target="_blank" rel="noopener" style="--d:0.25s"><span class="ci">in</span> linkedin.com/in/paullewispgh</a>
     <a class="c-row" id="c-gh" href="https://github.com/paullewis2013" target="_blank" rel="noopener" style="--d:0.33s"><span class="ci">gh</span> github.com/paullewis2013</a>
     <a class="c-row" id="c-x" href="https://x.com/pel_dev" target="_blank" rel="noopener" style="--d:0.41s"><span class="ci">x </span> x.com/pel_dev</a>
+    <!-- No download attribute: iOS then opens the card in Contacts instead of saving a file -->
+    <a class="c-row" id="c-vcf" href="paul-lewis.vcf" type="text/vcard" style="--d:0.49s"><span class="ci">+ </span> save contact</a>
+    <button class="c-copy" id="c-share" style="--d:0.49s" aria-label="Share this page" hidden>share</button>
   </div>
 
   <!-- Hand-drawn notes over the stamped UI -->
@@ -398,9 +437,9 @@
   </div>
 
   <!-- Boot guard. Three.js is imported by the module script at the bottom of
-       the page; if it never arrives (CDN down or blocked) or the pond throws
-       during startup, the static contact block takes over instead of leaving
-       a dark screen. -->
+       the page; if it never arrives or the pond throws during startup (no
+       WebGL, say), the static contact block takes over instead of leaving a
+       dark screen. __pondLost does the same for a pond that died later. -->
   <script>
   (() => {
     let booted = false;
@@ -420,8 +459,9 @@
       fbLinks().forEach(a => a.removeAttribute('tabindex'));
       fallback.classList.add('visible');
     };
+    window.__pondLost = () => { booted = false; window.__pondFail(); };
     // Module scripts have executed (or failed) by the time load fires; the
-    // timer covers a CDN that hangs instead of failing.
+    // timer covers a request that hangs instead of failing.
     window.addEventListener('load', () => { if (!booted) window.__pondFail(); });
     setTimeout(() => { if (!booted) window.__pondFail(); }, 8000);
   })();
@@ -490,6 +530,42 @@
     // ── Three.js ─────────────────────────────────────────────────────────────
     const scene    = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false });
+
+    // ── WebGL context loss ──────────────────────────────────────────────────
+    // Mobile browsers drop a background tab's GL context. Three.js rebuilds
+    // its own state when the browser hands the context back; until then the
+    // loop holds the last ASCII frame instead of painting blank water. If the
+    // context still hasn't returned a few seconds into the page being
+    // visible, reload once; if that was already tried, show the static page.
+    let glLost = false, glLostTimer = 0;
+    function glWatchdog() {
+      clearTimeout(glLostTimer);
+      if (!glLost || document.hidden) return;
+      glLostTimer = setTimeout(() => {
+        if (!glLost) return;
+        let last = 0, marked = false;
+        try {
+          last = +sessionStorage.getItem('pondReload') || 0;
+          sessionStorage.setItem('pondReload', String(Date.now()));
+          marked = true;
+        } catch {}
+        // Without storage there's no way to tell a reload loop from a first try
+        if (marked && Date.now() - last > 60000) location.reload();
+        else { running = false; window.__pondLost(); }
+      }, 4000);
+    }
+    glCanvas.addEventListener('webglcontextlost', e => {
+      e.preventDefault();
+      glLost = true;
+      glWatchdog();
+    });
+    glCanvas.addEventListener('webglcontextrestored', () => {
+      glLost = false;
+      clearTimeout(glLostTimer);
+      if (running) { lastTime = performance.now(); accumulator = 0; }
+      else renderFrame();
+    });
+    document.addEventListener('visibilitychange', glWatchdog);
 
     // The WebGL scene only ever gets sampled down to the character grid, so
     // render it at 2× grid resolution instead of full window resolution.
@@ -1235,6 +1311,9 @@
     const cLi       = document.getElementById('c-li');
     const cGh       = document.getElementById('c-gh');
     const cX        = document.getElementById('c-x');
+    const cVcf      = document.getElementById('c-vcf');
+    const cShare    = document.getElementById('c-share');
+    const cMailText = document.getElementById('c-mail-t');
 
     let contactOpen     = false;
     let contactOpenedAt = 0; // frameNum when opened, for the stamped rows' stagger
@@ -1245,8 +1324,8 @@
       // Skip the stagger if the sim is paused — rows must appear immediately
       contactOpenedAt = running ? frameNum : frameNum - 999;
       FISH.splash(3);
+      cLinksEl.hidden = false; // before positionHits: the phone sheet is measured
       positionHits();
-      cLinksEl.hidden = false;
       requestAnimationFrame(() => cLinksEl.classList.add('open')); // let transition run
       titleHit.setAttribute('aria-expanded', 'true');
       hintHit.setAttribute('aria-expanded', 'true');
@@ -1265,7 +1344,20 @@
       if (!running) renderFrame();
     }
     titleHit.addEventListener('click', () => contactOpen ? closeContact() : openContact());
-    hintHit.addEventListener('click', openContact);
+    // The hint reads [ close ] while the phone sheet is open
+    hintHit.addEventListener('click', () => contactOpen ? closeContact() : openContact());
+
+    // Native share sheet, where the browser has one (phones, mostly)
+    if (navigator.share) {
+      cShare.hidden = false;
+      cShare.addEventListener('click', () => {
+        navigator.share({
+          title: 'Paul Lewis',
+          text: 'Paul Lewis — fullstack engineer, product & design, NYC',
+          url: 'https://paullew.is/',
+        }).catch(() => {}); // dismissed
+      });
+    }
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && contactOpen) closeContact(); });
 
     // Click-away closes — but never on clicks inside the contact area or the
@@ -1414,6 +1506,7 @@
       { key: 'li',   icon: 'in', text: 'linkedin.com/in/paullewispgh' },
       { key: 'gh',   icon: 'gh', text: 'github.com/paullewis2013' },
       { key: 'x',    icon: 'x ', text: 'x.com/pel_dev' },
+      { key: 'vcf',  icon: '+ ', text: 'save contact', copy: true }, // pill: share
     ];
     const CT_COPY_W = '[copied]'.length;
     const CT_W = Math.max(
@@ -1430,9 +1523,14 @@
     const HINT_APPEAR = 192; // sim frames (~3.2s), matching the old CSS delays
     const CTL_APPEAR  = 216; // ~3.6s
 
-    function uiLayout() {
+    // On short phones the open contact sheet would cover the title, so the
+    // title block rises uiLift rows to clear it (eased in simTick).
+    let uiLift = 0, uiLiftTarget = 0;
+    const sheetMode = () => smallScreen() && isPortrait();
+
+    function uiLayout(lift = Math.round(uiLift)) {
       const titleCol = Math.round((cols - TITLE_W) / 2);
-      const titleRow = Math.max(1, Math.round(rows * 0.47 - TITLE_H / 2));
+      const titleRow = Math.max(1, Math.round(rows * 0.47 - TITLE_H / 2) - lift);
       return {
         titleCol, titleRow,
         hintCol: Math.round((cols - HINT_TEXT.length) / 2),
@@ -1495,6 +1593,9 @@
           const a = (inA * (hover.hint ? 0.95 : 0.55)).toFixed(2);
           stampText([HINT_TEXT], L.hintCol, L.hintRow, () => `rgba(232,144,58,${a})`);
         }
+      } else if (sheetMode()) {
+        const a = hover.hint ? 0.95 : 0.55;
+        stampText(['[  close  ]'], L.hintCol, L.hintRow, () => `rgba(232,144,58,${a})`);
       }
 
       // The [?] controls toggle
@@ -1516,11 +1617,11 @@
     // contact block while it's open. It's projected through the settled
     // camera (not the moving intro one) so it matches the resting view.
     const koCam = new THREE.PerspectiveCamera(viewFov(), window.innerWidth / window.innerHeight, 0.1, 1000);
-    function updateKeepOut(L, extra) {
+    function updateKeepOut(L, extra, sheet) {
       const cw = window.innerWidth / cols, ch = window.innerHeight / rows;
       const c0 = Math.min(L.titleCol, L.ctCol);
       const c1 = Math.max(L.titleCol + TITLE_W, L.ctCol + CT_W);
-      const r1 = contactOpen ? L.ctRow + CT_H : L.hintRow + 1;
+      const r1 = contactOpen && !sheet ? L.ctRow + CT_H : L.hintRow + 1; // the sheet isn't on the grid
       const p  = camEndPosition();
       koCam.fov    = viewFov();
       koCam.aspect = window.innerWidth / window.innerHeight;
@@ -1578,7 +1679,7 @@
     const setD = (id, d) => document.getElementById(id).setAttribute('d', d);
     const placeNote = (id, x, y) => { const el = document.getElementById(id); el.style.left = x + 'px'; el.style.top = y + 'px'; };
 
-    function positionHand(L, cw, chp) {
+    function positionHand(L, cw, chp, sheet) {
       const W = window.innerWidth;
       let hintBox, openBox;
       // Closed: a loop around [ contact ], "say hi!" off to the right (below on narrow screens)
@@ -1596,6 +1697,25 @@
         hintBox = { l: nx - 6, t: hy, r: nx + nw + 6, b: ny + 32 };
         placeNote('hd-hint-note', nx, ny);
         setD('hd-hint-arrow', handArrow(nx + 10, ny + 2, cx + 6, hy + hh + 10, 0.3));
+      }
+      if (sheet) {
+        // Phone sheet: CSS lays the rows out, so read the email's real box.
+        // The note sits on top of the sheet, its arrow down the left gutter.
+        if (contactOpen) {
+          const t = cMailText.getBoundingClientRect(), s = cLinksEl.getBoundingClientRect();
+          setD('hd-open-under', handUnderline(t.left, t.left + t.width, t.top + t.height + 1, 5));
+          const nx = s.left + 36, ny = s.top - 36;
+          placeNote('hd-open-note', nx, ny);
+          const x0 = nx - 5, y0 = ny + 18, x1 = s.left + 21, y1 = t.top + t.height / 2;
+          const c2x = x1 - 15, c2y = y1 - 9, ang = Math.atan2(y1 - c2y, x1 - c2x), HL = 8;
+          setD('hd-open-arrow',
+            `M${x0.toFixed(1)},${y0.toFixed(1)} C${(x0 - 24).toFixed(1)},${(y0 + 16).toFixed(1)}` +
+            ` ${c2x.toFixed(1)},${c2y.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}` +
+            ` M${(x1 - HL * Math.cos(ang - 0.55)).toFixed(1)},${(y1 - HL * Math.sin(ang - 0.55)).toFixed(1)}` +
+            ` L${x1.toFixed(1)},${y1.toFixed(1)}` +
+            ` L${(x1 - HL * Math.cos(ang + 0.45)).toFixed(1)},${(y1 - HL * Math.sin(ang + 0.45)).toFixed(1)}`);
+        }
+        return contactOpen ? null : hintBox;
       }
       // Open: underline the email, a note to the right of the block pointing back at it
       const ey  = (L.ctRow + ctLinkRow(0)) * chp;            // email row, as in positionHits
@@ -1624,6 +1744,28 @@
     function positionHits() {
       const cw = window.innerWidth  / cols;
       const chp = window.innerHeight / rows;
+      const sheet = sheetMode();
+      const root = document.documentElement;
+      root.classList.toggle('sheet', sheet);
+      root.classList.toggle('sheet-open', sheet && contactOpen);
+      const rowEls = [cMail, cCopy, cLi, cGh, cX, cVcf, cShare];
+      let sheetBox = null;
+      if (sheet) {
+        // CSS owns the row geometry here — drop anything grid mode set inline
+        cLinksEl.style.fontSize = '';
+        for (const el of rowEls) el.style.left = el.style.top = el.style.lineHeight = el.style.height = '';
+      }
+      if (sheet && contactOpen) {
+        // Lift the title block just far enough that the title, the
+        // [ close ] hint and the hand-written note all clear the sheet
+        sheetBox = cLinksEl.getBoundingClientRect();
+        const L0 = uiLayout(0);
+        uiLiftTarget = Math.max(0, Math.min(L0.titleRow - 1,
+          Math.ceil(((L0.hintRow + 1) * chp + 48 - sheetBox.top) / chp)));
+      } else {
+        uiLiftTarget = 0;
+      }
+      if (!running) uiLift = uiLiftTarget; // paused: no ticks to ease it
       const L  = uiLayout();
       const place = (el, col, row, wCols, hRows, pad) => {
         el.style.left   = (col * cw - pad) + 'px';
@@ -1636,13 +1778,30 @@
       place(hintHit,  L.hintCol,  L.hintRow,  HINT_TEXT.length, 1, pad);
       place(ctlHit,   L.ctlCol,   L.ctlRow,   3,                1, pad);
 
-      // Contact link rows: real HTML text laid onto the grid. Font size and
-      // line height come from the live cell metrics so the rows render at
-      // exactly the same scale as the stamped characters around them.
-      updateKeepOut(L, positionHand(L, cw, chp));
-      hintHit.style.display = contactOpen ? 'none' : '';
-      document.getElementById('ct-win').classList.toggle('open', contactOpen);
-      if (contactOpen) {
+      updateKeepOut(L, positionHand(L, cw, chp, sheet), sheet);
+      // Grid mode: the window replaces the hint. Sheet mode: the hint stays as
+      // [ close ], and the sheet covers the [?] corner.
+      hintHit.style.display = (contactOpen && !sheet) ? 'none' : '';
+      ctlHit.style.display  = (contactOpen && sheet)  ? 'none' : '';
+      hintHit.setAttribute('aria-label', contactOpen ? 'Close contact' : 'Open contact');
+      const ctWin = document.getElementById('ct-win');
+      const bar   = ctWin.querySelector('.ct-bar');
+      const role  = ctWin.querySelector('.ct-role');
+      ctWin.classList.toggle('open', contactOpen);
+      if (sheetBox) {
+        // Window chrome behind the CSS-laid-out sheet, from its measured box
+        ctWin.style.fontSize = (window.innerWidth < 350 ? 11 : 12) + 'px';
+        ctWin.style.left   = sheetBox.left + 'px';
+        ctWin.style.width  = sheetBox.width + 'px';
+        ctWin.style.top    = sheetBox.top + 'px';
+        ctWin.style.height = sheetBox.height + 'px';
+        bar.style.height = '42px';
+        role.style.top = '46px';
+        role.style.lineHeight = '26px';
+      } else if (contactOpen) {
+        // Contact link rows: real HTML text laid onto the grid. Font size and
+        // line height come from the live cell metrics so the rows render at
+        // exactly the same scale as the stamped characters around them.
         cLinksEl.style.fontSize   = fontSize + 'px';
         // Each row's box is h tall, centred on the text's cell, so the spacing
         // between links is also clickable
@@ -1653,22 +1812,22 @@
           el.style.lineHeight = h + 'px';
           el.style.height     = h + 'px';
         };
-        placeRow(cMail, 0, L.ctCol);
-        placeRow(cCopy, 0, L.ctCol + CT_W - '[copied]'.length, 1.35 * chp);
-        placeRow(cLi,   1, L.ctCol);
-        placeRow(cGh,   2, L.ctCol);
-        placeRow(cX,    3, L.ctCol);
+        const pillCol = L.ctCol + CT_W - CT_COPY_W;
+        placeRow(cMail,  0, L.ctCol);
+        placeRow(cCopy,  0, pillCol, 1.35 * chp);
+        placeRow(cLi,    1, L.ctCol);
+        placeRow(cGh,    2, L.ctCol);
+        placeRow(cX,     3, L.ctCol);
+        placeRow(cVcf,   4, L.ctCol);
+        placeRow(cShare, 4, pillCol, 1.35 * chp);
         // Window: title bar on the row above the block's first row, role on
         // the row after it, links below, one row of padding at the bottom
-        const ctWin = document.getElementById('ct-win');
         ctWin.style.fontSize = fontSize + 'px';
         ctWin.style.left   = ((L.ctCol - 3) * cw) + 'px';
         ctWin.style.width  = ((CT_W + 6) * cw) + 'px';
         ctWin.style.top    = ((L.ctRow - 1) * chp) + 'px';
         ctWin.style.height = ((CT_H + 1) * chp) + 'px';
-        const bar = ctWin.querySelector('.ct-bar');
         bar.style.height = (2 * chp - 2) + 'px';
-        const role = ctWin.querySelector('.ct-role');
         role.style.top = (2 * chp) + 'px';
         role.style.lineHeight = chp + 'px';
       }
@@ -1707,6 +1866,7 @@
         renderFrame(); // repaint immediately, even while paused
       }
       updateFontBar();
+      quality.off = true; // the visitor picked a size — stop adapting it
     }
     let fontDragging = false;
     fontBarEl.addEventListener('pointerdown', e => {
@@ -1780,11 +1940,61 @@
     let lastTime    = performance.now();
     let accumulator = 0;
 
+    // The intro plays at 8× once the visitor taps or presses a key, and from
+    // the start when they've already watched it in this tab.
+    let introFast = false, introSeen = false, loaderFaded = false;
+    try { introFast = sessionStorage.getItem('pondSeen') === '1'; } catch {}
+    const skipIntro = () => { if (frameNum < INTRO_FRAMES) introFast = true; };
+    document.addEventListener('pointerdown', skipIntro);
+    document.addEventListener('keydown', skipIntro);
+
+    // ── Adaptive quality ─────────────────────────────────────────────────────
+    // Cost per frame scales with the cell count. When frames run slow the
+    // character size steps up (fewer cells), at most three sizes, and never
+    // back down, so it can't oscillate. `work` is the time spent in the sim
+    // and render; `gap` is the time between frames. Slow means frames are
+    // actually being missed (gap) because of our own work, or the work alone
+    // is at the 60fps budget. Requiring real work alongside a long gap keeps
+    // a 30fps cap (iOS Low Power Mode) from being mistaken for a slow device.
+    const quality = { n: 0, work: 0, gap: 0, skip: 30, slow: 0, steps: 0, off: false };
+    function qualitySample(work, gap) {
+      if (quality.off) return;
+      if (quality.skip > 0) { quality.skip--; return; } // startup / just resized
+      if (gap > 100) return;                            // a hitch, not the steady state
+      quality.work += work;
+      quality.gap  += gap;
+      if (++quality.n < 45) return;
+      const w = quality.work / quality.n, g = quality.gap / quality.n;
+      quality.n = quality.work = quality.gap = 0;
+      if (!(w > 15 || (g > 21 && w > 9))) { quality.slow = 0; return; }
+      if (++quality.slow < 2) return; // two slow windows in a row (~1.5s), not one blip
+      quality.slow = 0;
+      if (quality.steps >= 3 || fontSize >= fontRange()[1]) { quality.off = true; return; }
+      quality.steps++;
+      quality.skip = 20;
+      setFontSize(fontSize + 1);
+      updateFontBar();
+      try { sessionStorage.setItem('pondBump', String(quality.steps)); } catch {}
+    }
+
     function simTick() {
       frameNum++;
-      if (frameNum === 2) {
+      if (introFast && frameNum < INTRO_FRAMES) frameNum = Math.min(INTRO_FRAMES, frameNum + 7);
+      if (!loaderFaded && frameNum >= 2) {
+        loaderFaded = true;
         loader.classList.add('fade-out');
         loader.addEventListener('transitionend', () => loader.remove(), { once: true });
+      }
+      if (!introSeen && frameNum >= INTRO_FRAMES) {
+        introSeen = true;
+        try { sessionStorage.setItem('pondSeen', '1'); } catch {}
+      }
+      // Ease the title block toward its lift; hits and keep-out follow by row
+      if (uiLift !== uiLiftTarget) {
+        const before = Math.round(uiLift);
+        uiLift += (uiLiftTarget - uiLift) * 0.22;
+        if (Math.abs(uiLiftTarget - uiLift) < 0.05) uiLift = uiLiftTarget;
+        if (Math.round(uiLift) !== before) positionHits();
       }
       // Intro camera pull-up + lum reveal
       if (frameNum <= INTRO_FRAMES) {
@@ -1813,6 +2023,7 @@
     }
 
     function renderFrame() {
+      if (glLost) return; // keep the last good frame on screen
       renderer.render(scene, camera);
       pt.frame(renderer.domElement, asciiCanvas);
       stampUI();
@@ -1821,19 +2032,31 @@
     function loop(now) {
       if (!running) return;
       requestAnimationFrame(loop);
-      let dt = now - lastTime;
+      const gap = now - lastTime;
       lastTime = now;
-      if (dt > 250) dt = 250; // tab was hidden or a long hitch — don't fast-forward
-      accumulator += dt;
+      if (glLost) { accumulator = 0; return; } // frozen until the context is back
+      const t0 = performance.now();
+      accumulator += Math.min(gap, 250); // tab was hidden or a long hitch — don't fast-forward
       let stepped = false;
       while (accumulator >= SIM_STEP) {
         simTick();
         accumulator -= SIM_STEP;
         stepped = true;
       }
-      if (stepped) renderFrame();
+      if (stepped) {
+        renderFrame();
+        qualitySample(performance.now() - t0, gap);
+      }
     }
 
+    // A reload in the same tab starts at the size it had already adapted to
+    try {
+      const bump = Math.min(3, +sessionStorage.getItem('pondBump') || 0);
+      if (bump > 0) {
+        quality.steps = bump;
+        setFontSize(Math.min(fontRange()[1], fontSize + bump));
+      }
+    } catch {}
     positionHits();
     updateFontBar();
     window.__pondBooted();

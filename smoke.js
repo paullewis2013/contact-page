@@ -1,12 +1,14 @@
 // smoke.js — executes index.html's inline scripts under a mock browser
 // environment: full init, the intro, weather ticks, several rendered frames,
-// resize, the font scrubber, the drawer, and a petal gust. Catches missing identifiers and
+// WebGL context loss, slow-frame adaptation, resize, the font scrubber, the
+// contact window (grid and phone sheet), and a petal gust. Catches missing identifiers and
 // runtime errors that syntax checks can't (e.g. a deleted function still
 // being called). Run: node smoke.js
 'use strict';
 const fs = require('fs');
 
 // ── Mock 2D canvas ───────────────────────────────────────────────────────────
+const listeners = {};
 function makeCtx(canvas) {
   return {
     canvas,
@@ -18,17 +20,16 @@ function makeCtx(canvas) {
     createRadialGradient() { return { addColorStop() {} }; },
   };
 }
-function makeCanvas() {
+function makeCanvas(id) {
   const c = {
     width: 300, height: 150, _ctx: null, style: {},
     getContext() { this._ctx = this._ctx || makeCtx(this); return this._ctx; },
-    addEventListener() {},
+    addEventListener(type, fn) { if (id) (listeners[id + ':' + type] ||= []).push(fn); },
   };
   return c;
 }
 
 // ── Mock DOM ─────────────────────────────────────────────────────────────────
-const listeners = {};
 function makeEl(id) {
   const el = {
     id,
@@ -58,7 +59,7 @@ function makeEl(id) {
   };
   return el;
 }
-const canvases = { ascii: makeCanvas(), glcanvas: makeCanvas() };
+const canvases = { ascii: makeCanvas('ascii'), glcanvas: makeCanvas('glcanvas') };
 const elements = {};
 global.document = {
   getElementById(id) {
@@ -84,10 +85,16 @@ global.window = {
 global.requestAnimationFrame = global.window.requestAnimationFrame;
 global.matchMedia = global.window.matchMedia;
 global.performance = { now: () => simeTime };
+let shared = 0; // navigator.share calls
 Object.defineProperty(globalThis, 'navigator', {
-  value: { clipboard: { writeText: async () => {} } },
+  value: { clipboard: { writeText: async () => {} }, share: async () => { shared++; } },
   configurable: true,
 });
+const store = new Map();
+global.sessionStorage = {
+  getItem: k => (store.has(k) ? store.get(k) : null),
+  setItem: (k, v) => { store.set(k, String(v)); },
+};
 global.setInterval = () => 0;
 global.setTimeout = (fn) => 0;
 global.clearTimeout = () => {};
@@ -173,6 +180,56 @@ run('run 400 more frames (post-intro, weather era)', () => {
   }
 });
 
+run('the finished intro is remembered for this tab', () => {
+  (listeners['document:pointerdown'] || []).forEach(fn => fn({}));
+  if (store.get('pondSeen') !== '1') throw new Error('intro never recorded as seen');
+});
+
+run('WebGL context lost: frames hold, then resume on restore', () => {
+  const ctx = canvases.ascii.getContext();
+  let fills = 0;
+  const realFill = ctx.fillText;
+  ctx.fillText = () => { fills++; };
+  const step = n => { for (let f = 0; f < n; f++) {
+    simeTime += 16.7; const q = rafQueue; rafQueue = []; q.forEach(cb => cb(simeTime)); } };
+  try {
+    (listeners['glcanvas:webglcontextlost'] || []).forEach(fn => fn({ preventDefault() {} }));
+    step(10);
+    if (fills !== 0) throw new Error('drew while the context was lost');
+    if (!rafQueue.length) throw new Error('loop stopped while the context was lost');
+    (listeners['glcanvas:webglcontextrestored'] || []).forEach(fn => fn());
+    step(10);
+    if (fills === 0) throw new Error('nothing drawn after restore');
+  } finally { ctx.fillText = realFill; }
+});
+
+run('slow frames raise the character size, and remember it', () => {
+  const before = elements.fontBar.textContent;
+  const realNow = performance.now;
+  performance.now = () => (simeTime += 20); // every frame costs 20ms of "work"
+  try {
+    for (let f = 0; f < 140; f++) {
+      simeTime += 16.7;
+      const q = rafQueue; rafQueue = [];
+      q.forEach(cb => cb(simeTime));
+    }
+  } finally { performance.now = realNow; }
+  if (elements.fontBar.textContent === before) throw new Error('character size did not step up');
+  if (!(+store.get('pondBump') >= 1)) throw new Error('adapted size not remembered');
+});
+
+run('open contact as the grid window, share, close', () => {
+  (listeners['hint-hit:click'] || []).forEach(fn => fn());          // open
+  for (let f = 0; f < 30; f++) {
+    simeTime += 16.7;
+    const q = rafQueue; rafQueue = [];
+    q.forEach(cb => cb(simeTime));
+  }
+  (listeners['c-share:click'] || []).forEach(fn => fn());
+  if (shared !== 1) throw new Error('share did not call navigator.share');
+  (listeners['hint-hit:click'] || []).forEach(fn => fn());          // the hint toggles
+});
+
 run('window resize', () => {
   window.innerWidth = 390; window.innerHeight = 844; // phone portrait
   (listeners['window:resize'] || []).forEach(fn => fn());
@@ -185,7 +242,7 @@ run('font scrubber drag', () => {
   (listeners['fontBar:pointerup'] || []).forEach(fn => fn({}));
 });
 
-run('open contact, render, copy, close', () => {
+run('open contact as the phone sheet, render, copy, close', () => {
   (listeners['title-hit:click'] || []).forEach(fn => fn());        // open
   for (let f = 0; f < 20; f++) {                                    // stagger frames
     simeTime += 16.7;

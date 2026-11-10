@@ -11,6 +11,13 @@ index.html        home — the koi pond (Three.js via an import map). The page's
                   without JS or if the pond fails, screen-reader-only otherwise.
                   Person JSON-LD in the head.
 pretext.js        canvas ASCII renderer (WebGL scene → coloured characters)
+vendor/           self-hosted third-party files, so the page makes no outside requests:
+  three.module.min.js   Three.js r160 (MIT), from the three npm package
+  caveat-notes.woff2    Caveat 600 (OFL), subset to the glyphs of the two hand-written
+                        notes. Reword a note and the subset must be regenerated:
+                        fonts.googleapis.com/css2?family=Caveat:wght@600&text=<all the letters>
+  OFL-Caveat.txt        the font's licence
+paul-lewis.vcf    the "save contact" card: name, title, email and profile links only
 favicon.svg
 robots.txt        allows all crawlers (AI crawlers named explicitly); points at the sitemap
 sitemap.xml       hand-maintained: add a <url> per new page (the blog isn't listed yet)
@@ -43,8 +50,13 @@ blog/
    elements on top of the stamped cells provide real links, clicks, hover,
    and keyboard focus. The contact block opens under the title, with a
    ripple burst in the pond, as a small terminal-style window: its link
-   rows are real HTML laid onto the grid (selectable, copyable). A
-   hand-drawn layer (SVG ink plus notes in Caveat, from Google Fonts) draws
+   rows are real HTML laid onto the grid (selectable, copyable). On phones
+   in portrait the same rows dock to the bottom edge as a sheet with
+   finger-sized targets, laid out by CSS (`html.sheet`); the hint becomes
+   `[ close ]` and the title rises if the sheet would cover it. The last
+   row saves a contact card (`paul-lewis.vcf`) and, where the browser has a
+   share sheet, shares the page. A
+   hand-drawn layer (SVG ink plus notes in a self-hosted Caveat subset) draws
    a loop around the hint and a note pointing at the email. Koi are steered
    clear of the text and the notes by a keep-out zone projected from their
    screen rectangle into the pond.
@@ -52,6 +64,14 @@ blog/
    `requestAnimationFrame`, so it plays at the same speed on 60/120/144 Hz
    displays and doesn't stutter in Chrome/Safari the way per-frame DOM
    mutation did.
+5. Robustness on phones. The intro plays at 8× after a tap or key press,
+   and from the start on a repeat visit in the same tab. When frames run
+   slow for a second or two the character size steps up (fewer cells), at
+   most three sizes and never back down; using the scrubber turns that
+   off. If the browser drops the WebGL context (common for background tabs
+   on iOS) the last frame is held until the context returns; if it hasn't
+   after four seconds the page reloads once, and failing that shows the
+   static page.
 
 Controls: press `?` or tap the `[?]` stamped in the bottom-left corner to
 toggle the control bar — a character-size scrubber (`a ····●···· A`, click
